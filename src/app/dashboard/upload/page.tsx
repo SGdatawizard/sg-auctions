@@ -11,7 +11,6 @@ import {
   Calendar,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils/formatters";
-import { createClient } from "@/lib/supabase/client";
 
 type UploadState = "idle" | "uploading" | "success" | "error";
 
@@ -23,6 +22,32 @@ type UploadResult = {
   lotsSold: number;
   totalHammerValue: number;
 };
+
+function getAccessToken(): string | null {
+  try {
+    // Supabase stores auth under this key in localStorage
+    const storageKey = "sg-auctions-auth";
+    const raw = localStorage.getItem(storageKey);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return parsed?.access_token ?? null;
+    }
+    // Fallback — search all localStorage keys for a Supabase token
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.includes("supabase") || key && key.includes("auth")) {
+        const val = localStorage.getItem(key);
+        if (val) {
+          const parsed = JSON.parse(val);
+          if (parsed?.access_token) return parsed.access_token;
+        }
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
 
 export default function UploadPage() {
   const router = useRouter();
@@ -65,11 +90,9 @@ export default function UploadPage() {
     setState("uploading");
     setError(null);
 
-    // Get the current session token
-    const supabase = createClient();
-    const { data: { session } } = await supabase.auth.getSession();
+    const accessToken = getAccessToken();
 
-    if (!session) {
+    if (!accessToken) {
       setError("Not authenticated — please log in again");
       setState("error");
       return;
@@ -83,7 +106,7 @@ export default function UploadPage() {
       const res = await fetch("/api/upload", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${session.access_token}`,
+          Authorization: `Bearer ${accessToken}`,
         },
         body: formData,
       });
