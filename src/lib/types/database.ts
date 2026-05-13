@@ -167,6 +167,23 @@ export interface Database {
           country?: string | null;
         };
       };
+      describers: {
+        Row: {
+          id: string;
+          created_at: string;
+          name: string;
+        };
+        Insert: {
+          id?: string;
+          created_at?: string;
+          name: string;
+        };
+        Update: {
+          id?: string;
+          created_at?: string;
+          name?: string;
+        };
+      };
       lot_vendors: {
         Row: {
           id: string;
@@ -199,6 +216,23 @@ export interface Database {
           id?: string;
           lot_id?: string;
           buyer_id?: string;
+        };
+      };
+      lot_describers: {
+        Row: {
+          id: string;
+          lot_id: string;
+          describer_id: string;
+        };
+        Insert: {
+          id?: string;
+          lot_id: string;
+          describer_id: string;
+        };
+        Update: {
+          id?: string;
+          lot_id?: string;
+          describer_id?: string;
         };
       };
       uploads: {
@@ -238,6 +272,7 @@ export type Auction = Database["public"]["Tables"]["auctions"]["Row"];
 export type Lot = Database["public"]["Tables"]["lots"]["Row"];
 export type Vendor = Database["public"]["Tables"]["vendors"]["Row"];
 export type Buyer = Database["public"]["Tables"]["buyers"]["Row"];
+export type Describer = Database["public"]["Tables"]["describers"]["Row"];
 export type Upload = Database["public"]["Tables"]["uploads"]["Row"];
 
 export type AuctionWithLots = Auction & {
@@ -247,6 +282,7 @@ export type AuctionWithLots = Auction & {
 export type LotWithPeople = Lot & {
   vendors: Vendor[];
   buyers: Buyer[];
+  describers: Describer[];
 };
 
 export type KPISummary = {
@@ -273,4 +309,35 @@ export type CategorySummary = {
   totalSold: number;
   totalHammerValue: number;
   sellThroughRate: number;
+};
+
+export type EstimateRange = {
+  label: string;
+  min: number;
+  max: number | null;
+};
+
+export const ESTIMATE_RANGES: EstimateRange[] = [
+  { label: "£100–£300",     min: 100,   max: 300   },
+  { label: "£301–£500",     min: 301,   max: 500   },
+  { label: "£501–£1,000",   min: 501,   max: 1000  },
+  { label: "£1,001–£2,500", min: 1001,  max: 2500  },
+  { label: "£2,501–£5,000", min: 2501,  max: 5000  },
+  { label: "£5,000+",       min: 5001,  max: null  },
+];
+
+export type DescriberSummary = {
+  id: string;
+  name: string;
+  totalLots: number;
+  totalSold: number;
+  totalHammerValue: number;
+  sellThroughRate: number;
+  averageHammerVsEstimate: number;
+  estimateRangeBreakdown: {
+    range: string;
+    totalLots: number;
+    totalSold: number;
+    sellThroughRate: number;
+  }[];
 };
