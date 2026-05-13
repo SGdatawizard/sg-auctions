@@ -1,72 +1,61 @@
-import { createClient } from "@/lib/supabase/server";
+"use client";
+
+import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import { formatCurrency, formatPercent } from "@/lib/utils/formatters";
-import {
-  Gavel,
-  TrendingUp,
-  PackageCheck,
-  BarChart3,
-} from "lucide-react";
-import type { KPISummary } from "@/lib/types/database";
+import { Gavel, TrendingUp, PackageCheck, BarChart3 } from "lucide-react";
+import type { KPISummary, Auction } from "@/lib/types/database";
+import Link from "next/link";
 
-async function getKPISummary(): Promise<KPISummary> {
-  const supabase = await createClient();
+export default function DashboardPage() {
+  const [kpi, setKpi] = useState<KPISummary | null>(null);
+  const [recentAuctions, setRecentAuctions] = useState<Auction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const supabase = createClient();
 
-  const { data: auctions } = await supabase
-    .from("auctions")
-    .select("*");
+  useEffect(() => {
+    async function loadData() {
+      const { data: auctions } = await supabase
+        .from("auctions")
+        .select("*")
+        .order("date", { ascending: false });
 
-  const { data: lots } = await supabase
-    .from("lots")
-    .select("*");
+      const { data: lots } = await supabase.from("lots").select("*");
 
-  if (!auctions || !lots) {
-    return {
-      totalAuctions: 0,
-      totalLots: 0,
-      totalSold: 0,
-      totalHammerValue: 0,
-      sellThroughRate: 0,
-      averageLotValue: 0,
-    };
+      if (!auctions || !lots) return;
+
+      const totalSold = lots.filter((l) => l.sold).length;
+      const totalHammerValue = lots
+        .filter((l) => l.sold && l.hammer_price)
+        .reduce((sum, l) => sum + (l.hammer_price ?? 0), 0);
+
+      setKpi({
+        totalAuctions: auctions.length,
+        totalLots: lots.length,
+        totalSold,
+        totalHammerValue,
+        sellThroughRate: lots.length > 0 ? (totalSold / lots.length) * 100 : 0,
+        averageLotValue: totalSold > 0 ? totalHammerValue / totalSold : 0,
+      });
+
+      setRecentAuctions(auctions.slice(0, 5));
+      setLoading(false);
+    }
+    loadData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-zinc-500 text-sm">Loading...</p>
+      </div>
+    );
   }
-
-  const totalSold = lots.filter((l) => l.sold).length;
-  const totalHammerValue = lots
-    .filter((l) => l.sold && l.hammer_price)
-    .reduce((sum, l) => sum + (l.hammer_price ?? 0), 0);
-
-  return {
-    totalAuctions: auctions.length,
-    totalLots: lots.length,
-    totalSold,
-    totalHammerValue,
-    sellThroughRate: lots.length > 0 ? (totalSold / lots.length) * 100 : 0,
-    averageLotValue: totalSold > 0 ? totalHammerValue / totalSold : 0,
-  };
-}
-
-async function getRecentAuctions() {
-  const supabase = await createClient();
-
-  const { data } = await supabase
-    .from("auctions")
-    .select("*")
-    .order("date", { ascending: false })
-    .limit(5);
-
-  return data ?? [];
-}
-
-export default async function DashboardPage() {
-  const [kpi, recentAuctions] = await Promise.all([
-    getKPISummary(),
-    getRecentAuctions(),
-  ]);
 
   const stats = [
     {
       label: "Total auctions",
-      value: kpi.totalAuctions.toString(),
+      value: kpi?.totalAuctions.toString() ?? "0",
       icon: Gavel,
       color: "text-brand-400",
       bg: "bg-brand-500/10",
@@ -74,7 +63,7 @@ export default async function DashboardPage() {
     },
     {
       label: "Total hammer value",
-      value: formatCurrency(kpi.totalHammerValue),
+      value: formatCurrency(kpi?.totalHammerValue ?? 0),
       icon: TrendingUp,
       color: "text-emerald-400",
       bg: "bg-emerald-500/10",
@@ -82,7 +71,7 @@ export default async function DashboardPage() {
     },
     {
       label: "Sell-through rate",
-      value: formatPercent(kpi.sellThroughRate),
+      value: formatPercent(kpi?.sellThroughRate ?? 0),
       icon: PackageCheck,
       color: "text-blue-400",
       bg: "bg-blue-500/10",
@@ -90,7 +79,7 @@ export default async function DashboardPage() {
     },
     {
       label: "Average lot value",
-      value: formatCurrency(kpi.averageLotValue),
+      value: formatCurrency(kpi?.averageLotValue ?? 0),
       icon: BarChart3,
       color: "text-purple-400",
       bg: "bg-purple-500/10",
@@ -100,8 +89,6 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-8">
-
-      {/* Header */}
       <div>
         <h1 className="page-title">Overview</h1>
         <p className="text-zinc-500 text-sm mt-1">
@@ -109,7 +96,6 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {stats.map((stat) => (
           <div key={stat.label} className="card flex items-start gap-4">
@@ -126,25 +112,23 @@ export default async function DashboardPage() {
         ))}
       </div>
 
-      {/* Secondary stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="card">
           <p className="stat-label">Total lots offered</p>
-          <p className="stat-value mt-1">{kpi.totalLots.toLocaleString()}</p>
+          <p className="stat-value mt-1">{kpi?.totalLots.toLocaleString()}</p>
         </div>
         <div className="card">
           <p className="stat-label">Total lots sold</p>
-          <p className="stat-value mt-1">{kpi.totalSold.toLocaleString()}</p>
+          <p className="stat-value mt-1">{kpi?.totalSold.toLocaleString()}</p>
         </div>
         <div className="card">
           <p className="stat-label">Lots unsold</p>
           <p className="stat-value mt-1">
-            {(kpi.totalLots - kpi.totalSold).toLocaleString()}
+            {((kpi?.totalLots ?? 0) - (kpi?.totalSold ?? 0)).toLocaleString()}
           </p>
         </div>
       </div>
 
-      {/* Recent auctions */}
       <div className="card">
         <h2 className="section-title mb-4">Recent auctions</h2>
         {recentAuctions.length === 0 ? (
@@ -164,12 +148,8 @@ export default async function DashboardPage() {
                   <th className="table-header text-left pb-3 px-4">Date</th>
                   <th className="table-header text-right pb-3 px-4">Lots</th>
                   <th className="table-header text-right pb-3 px-4">Sold</th>
-                  <th className="table-header text-right pb-3 px-4">
-                    Hammer value
-                  </th>
-                  <th className="table-header text-right pb-3 px-4">
-                    Sell-through
-                  </th>
+                  <th className="table-header text-right pb-3 px-4">Hammer value</th>
+                  <th className="table-header text-right pb-3 px-4">Sell-through</th>
                 </tr>
               </thead>
               <tbody>
@@ -179,7 +159,12 @@ export default async function DashboardPage() {
                     className="border-b border-zinc-800/50 hover:bg-zinc-800/30 transition-colors"
                   >
                     <td className="table-cell font-medium text-zinc-100">
-                      {auction.name}
+                      <Link
+                        href={`/dashboard/auctions/${auction.id}`}
+                        className="hover:text-brand-400 transition-colors"
+                      >
+                        {auction.name}
+                      </Link>
                     </td>
                     <td className="table-cell">
                       {new Date(auction.date).toLocaleDateString("en-GB", {
@@ -188,12 +173,8 @@ export default async function DashboardPage() {
                         year: "numeric",
                       })}
                     </td>
-                    <td className="table-cell text-right">
-                      {auction.total_lots}
-                    </td>
-                    <td className="table-cell text-right">
-                      {auction.lots_sold}
-                    </td>
+                    <td className="table-cell text-right">{auction.total_lots}</td>
+                    <td className="table-cell text-right">{auction.lots_sold}</td>
                     <td className="table-cell text-right">
                       {formatCurrency(auction.total_hammer_value)}
                     </td>
@@ -220,7 +201,6 @@ export default async function DashboardPage() {
           </div>
         )}
       </div>
-
     </div>
   );
 }
