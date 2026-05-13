@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   AlertCircle,
   X,
+  Calendar,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils/formatters";
 
@@ -15,6 +16,8 @@ type UploadState = "idle" | "uploading" | "success" | "error";
 
 type UploadResult = {
   auctionId: string;
+  auctionName: string;
+  saleNumber: string | null;
   lotsImported: number;
   lotsSold: number;
   totalHammerValue: number;
@@ -23,9 +26,7 @@ type UploadResult = {
 export default function UploadPage() {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
-  const [auctionName, setAuctionName] = useState("");
   const [auctionDate, setAuctionDate] = useState("");
-  const [auctionLocation, setAuctionLocation] = useState("");
   const [state, setState] = useState<UploadState>("idle");
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<UploadResult | null>(null);
@@ -43,7 +44,11 @@ export default function UploadPage() {
     const dropped = e.dataTransfer.files?.[0] ?? null;
     if (dropped) {
       const name = dropped.name.toLowerCase();
-      if (!name.endsWith(".csv") && !name.endsWith(".xlsx") && !name.endsWith(".xls")) {
+      if (
+        !name.endsWith(".csv") &&
+        !name.endsWith(".xlsx") &&
+        !name.endsWith(".xls")
+      ) {
         setError("Only CSV and Excel files are supported");
         return;
       }
@@ -54,16 +59,14 @@ export default function UploadPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!file || !auctionName || !auctionDate) return;
+    if (!file || !auctionDate) return;
 
     setState("uploading");
     setError(null);
 
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("auction_name", auctionName);
     formData.append("auction_date", auctionDate);
-    formData.append("auction_location", auctionLocation);
 
     try {
       const res = await fetch("/api/upload", {
@@ -89,9 +92,7 @@ export default function UploadPage() {
 
   function handleReset() {
     setFile(null);
-    setAuctionName("");
     setAuctionDate("");
-    setAuctionLocation("");
     setState("idle");
     setError(null);
     setResult(null);
@@ -108,14 +109,14 @@ export default function UploadPage() {
         </div>
 
         <div className="card text-center py-10">
-          <CheckCircle2
-            size={48}
-            className="text-emerald-400 mx-auto mb-4"
-          />
-          <h2 className="section-title mb-2">Upload successful</h2>
-          <p className="text-zinc-500 text-sm mb-6">
-            Your auction data has been imported
-          </p>
+          <CheckCircle2 size={48} className="text-emerald-400 mx-auto mb-4" />
+          <h2 className="section-title mb-1">Upload successful</h2>
+          {result.saleNumber && (
+            <p className="text-brand-400 text-sm font-medium mb-1">
+              {result.saleNumber}
+            </p>
+          )}
+          <p className="text-zinc-500 text-sm mb-6">{result.auctionName}</p>
 
           <div className="grid grid-cols-3 gap-4 mb-8">
             <div className="card-sm text-center">
@@ -162,49 +163,13 @@ export default function UploadPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Auction details */}
-        <div className="card space-y-4">
-          <h2 className="section-title">Auction details</h2>
-
-          <div>
-            <label className="label">Auction name *</label>
-            <input
-              type="text"
-              value={auctionName}
-              onChange={(e) => setAuctionName(e.target.value)}
-              className="input"
-              placeholder="e.g. Spring Fine Art Sale 2024"
-              required
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="label">Auction date *</label>
-              <input
-                type="date"
-                value={auctionDate}
-                onChange={(e) => setAuctionDate(e.target.value)}
-                className="input"
-                required
-              />
-            </div>
-            <div>
-              <label className="label">Location</label>
-              <input
-                type="text"
-                value={auctionLocation}
-                onChange={(e) => setAuctionLocation(e.target.value)}
-                className="input"
-                placeholder="e.g. London"
-              />
-            </div>
-          </div>
-        </div>
 
         {/* File upload */}
         <div className="card space-y-4">
-          <h2 className="section-title">File</h2>
+          <h2 className="section-title">Select file</h2>
+          <p className="text-zinc-500 text-xs -mt-2">
+            Auction name and sale number will be read from the file automatically
+          </p>
 
           {!file ? (
             <div
@@ -220,12 +185,9 @@ export default function UploadPage() {
                   : "border-zinc-700 hover:border-zinc-600"
               }`}
             >
-              <Upload
-                size={32}
-                className="text-zinc-600 mx-auto mb-3"
-              />
+              <Upload size={32} className="text-zinc-600 mx-auto mb-3" />
               <p className="text-zinc-400 text-sm font-medium mb-1">
-                Drag and drop your file here
+                Drag and drop your export file here
               </p>
               <p className="text-zinc-600 text-xs mb-4">
                 CSV or Excel (.xlsx, .xls) — max 10MB
@@ -265,35 +227,25 @@ export default function UploadPage() {
           )}
         </div>
 
-        {/* Expected format */}
-        <div className="card-sm bg-zinc-900/50">
-          <p className="text-xs font-medium text-zinc-400 mb-2">
-            Expected CSV columns
+        {/* Auction date */}
+        <div className="card space-y-4">
+          <h2 className="section-title">Auction date</h2>
+          <p className="text-zinc-500 text-xs -mt-2">
+            The date the auction was held — used for year-on-year comparisons
           </p>
-          <div className="flex flex-wrap gap-2">
-            {[
-              "lot_number",
-              "title",
-              "artist",
-              "category",
-              "estimate_low",
-              "estimate_high",
-              "hammer_price",
-              "sold",
-              "currency",
-              "notes",
-            ].map((col) => (
-              <span
-                key={col}
-                className="text-xs bg-zinc-800 text-zinc-400 px-2 py-1 rounded font-mono"
-              >
-                {col}
-              </span>
-            ))}
+          <div className="relative">
+            <Calendar
+              size={16}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none"
+            />
+            <input
+              type="date"
+              value={auctionDate}
+              onChange={(e) => setAuctionDate(e.target.value)}
+              className="input pl-9"
+              required
+            />
           </div>
-          <p className="text-xs text-zinc-600 mt-2">
-            Column names are flexible — the parser will match common variations
-          </p>
         </div>
 
         {error && (
@@ -308,7 +260,7 @@ export default function UploadPage() {
 
         <button
           type="submit"
-          disabled={!file || !auctionName || !auctionDate || state === "uploading"}
+          disabled={!file || !auctionDate || state === "uploading"}
           className="btn-primary w-full flex items-center justify-center gap-2"
         >
           {state === "uploading" ? (
@@ -342,6 +294,7 @@ export default function UploadPage() {
             </>
           )}
         </button>
+
       </form>
     </div>
   );
