@@ -214,3 +214,85 @@ export default async function AuctionDetailPage({
                     <div className="flex-1 bg-zinc-800 rounded-full h-1.5">
                       <div
                         className="bg-brand-500 h-1.5 rounded-full transition-all"
+                        style={{
+                          width: `${cat.total > 0 ? (cat.sold / cat.total) * 100 : 0}%`,
+                        }}
+                      />
+                    </div>
+                    <span className="text-xs text-zinc-500 w-16 text-right">
+                      {cat.sold}/{cat.total} sold
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+      </div>
+
+      {/* Full lots table */}
+      <div className="card p-0 overflow-hidden">
+        <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
+          <h2 className="section-title">All lots</h2>
+          <div className="flex items-center gap-3">
+            <span className="badge-green">{soldLots.length} sold</span>
+            <span className="badge-red">{unsoldLots.length} unsold</span>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-zinc-800">
+                <th className="table-header text-left py-3 px-6">Lot</th>
+                <th className="table-header text-left py-3 px-6">Title</th>
+                <th className="table-header text-left py-3 px-6">Artist</th>
+                <th className="table-header text-left py-3 px-6">Category</th>
+                <th className="table-header text-right py-3 px-6">Estimate</th>
+                <th className="table-header text-right py-3 px-6">Hammer</th>
+                <th className="table-header text-center py-3 px-6">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lots.map((lot) => (
+                <tr
+                  key={lot.id}
+                  className="border-b border-zinc-800/50 hover:bg-zinc-800/20 transition-colors"
+                >
+                  <td className="table-cell px-6 text-zinc-500 font-mono text-xs">
+                    {lot.lot_number}
+                  </td>
+                  <td className="table-cell px-6 font-medium text-zinc-100 max-w-xs truncate">
+                    {lot.title}
+                  </td>
+                  <td className="table-cell px-6 text-zinc-400">
+                    {lot.artist ?? "—"}
+                  </td>
+                  <td className="table-cell px-6">
+                    {lot.category ?? "—"}
+                  </td>
+                  <td className="table-cell text-right px-6 text-zinc-400">
+                    {lot.estimate_low && lot.estimate_high
+                      ? `${formatCurrency(lot.estimate_low)} – ${formatCurrency(lot.estimate_high)}`
+                      : lot.estimate_low
+                      ? formatCurrency(lot.estimate_low)
+                      : "—"}
+                  </td>
+                  <td className="table-cell text-right px-6 font-medium text-zinc-100">
+                    {lot.hammer_price ? formatCurrency(lot.hammer_price) : "—"}
+                  </td>
+                  <td className="table-cell text-center px-6">
+                    <span className={lot.sold ? "badge-green" : "badge-red"}>
+                      {lot.sold ? "Sold" : "Unsold"}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  );
+}
