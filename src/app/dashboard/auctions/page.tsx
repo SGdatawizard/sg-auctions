@@ -1,21 +1,36 @@
-import { createClient } from "@/lib/supabase/server";
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
 import { formatCurrency, formatPercent, formatDate, getSellThroughBadge } from "@/lib/utils/formatters";
 import { Gavel, Plus } from "lucide-react";
+import type { Auction } from "@/lib/types/database";
 
-async function getAuctions() {
-  const supabase = await createClient();
+export default function AuctionsPage() {
+  const [auctions, setAuctions] = useState<Auction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const supabase = createClient();
 
-  const { data } = await supabase
-    .from("auctions")
-    .select("*")
-    .order("date", { ascending: false });
+  useEffect(() => {
+    async function loadAuctions() {
+      const { data } = await supabase
+        .from("auctions")
+        .select("*")
+        .order("date", { ascending: false });
+      setAuctions(data ?? []);
+      setLoading(false);
+    }
+    loadAuctions();
+  }, []);
 
-  return data ?? [];
-}
-
-export default async function AuctionsPage() {
-  const auctions = await getAuctions();
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-zinc-500 text-sm">Loading...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -52,6 +67,7 @@ export default async function AuctionsPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-zinc-800">
+                  <th className="table-header text-left py-4 px-6">Sale no.</th>
                   <th className="table-header text-left py-4 px-6">Auction</th>
                   <th className="table-header text-left py-4 px-6">Date</th>
                   <th className="table-header text-left py-4 px-6">Location</th>
@@ -74,7 +90,10 @@ export default async function AuctionsPage() {
                       key={auction.id}
                       className="border-b border-zinc-800/50 hover:bg-zinc-800/20 transition-colors"
                     >
-                      <td className="table-cell font-medium text-zinc-100 px-6">
+                      <td className="table-cell px-6 font-mono text-xs text-zinc-500">
+                        {auction.sale_number ?? "—"}
+                      </td>
+                      <td className="table-cell px-6 font-medium text-zinc-100">
                         {auction.name}
                       </td>
                       <td className="table-cell px-6">
