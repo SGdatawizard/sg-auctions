@@ -11,6 +11,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils/formatters";
+import { createClient } from "@/lib/supabase/client";
 
 type UploadState = "idle" | "uploading" | "success" | "error";
 
@@ -64,6 +65,16 @@ export default function UploadPage() {
     setState("uploading");
     setError(null);
 
+    // Get the current session token
+    const supabase = createClient();
+    const { data: { session } } = await supabase.auth.getSession();
+
+    if (!session) {
+      setError("Not authenticated — please log in again");
+      setState("error");
+      return;
+    }
+
     const formData = new FormData();
     formData.append("file", file);
     formData.append("auction_date", auctionDate);
@@ -71,6 +82,9 @@ export default function UploadPage() {
     try {
       const res = await fetch("/api/upload", {
         method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
         body: formData,
       });
 
