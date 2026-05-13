@@ -2,14 +2,12 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
   const supabase = createClient();
 
   async function handleLogin(e: React.FormEvent) {
@@ -34,9 +32,9 @@ export default function LoginPage() {
       return;
     }
 
-    // Use window.location for a hard redirect so middleware
-    // picks up the session cookie cleanly
-    window.location.href = "/dashboard";
+    // Small delay to ensure cookie is set before redirect
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    window.location.replace("/dashboard");
   }
 
   return (
