@@ -1,6 +1,9 @@
-import { createClient } from "@/lib/supabase/server";
-import { notFound } from "next/navigation";
+"use client";
+
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
 import {
   formatCurrency,
   formatPercent,
@@ -8,38 +11,63 @@ import {
   formatMultiplier,
   getSellThroughBadge,
 } from "@/lib/utils/formatters";
-import { ArrowLeft, TrendingUp, PackageCheck, Gavel, BarChart3 } from "lucide-react";
+import {
+  ArrowLeft,
+  TrendingUp,
+  PackageCheck,
+  Gavel,
+  BarChart3,
+} from "lucide-react";
+import type { Auction, Lot } from "@/lib/types/database";
 
-async function getAuction(id: string) {
-  const supabase = await createClient();
+export default function AuctionDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const [auction, setAuction] = useState<Auction | null>(null);
+  const [lots, setLots] = useState<Lot[]>([]);
+  const [loading, setLoading] = useState(true);
+  const supabase = createClient();
 
-  const { data: auction } = await supabase
-    .from("auctions")
-    .select("*")
-    .eq("id", id)
-    .single();
+  useEffect(() => {
+    async function loadData() {
+      const { data: auctionData } = await supabase
+        .from("auctions")
+        .select("*")
+        .eq("id", id)
+        .single();
 
-  if (!auction) return null;
+      if (!auctionData) {
+        setLoading(false);
+        return;
+      }
 
-  const { data: lots } = await supabase
-    .from("lots")
-    .select("*")
-    .eq("auction_id", id)
-    .order("lot_number", { ascending: true });
+      const { data: lotsData } = await supabase
+        .from("lots")
+        .select("*")
+        .eq("auction_id", id)
+        .order("lot_number", { ascending: true });
 
-  return { auction, lots: lots ?? [] };
-}
+      setAuction(auctionData);
+      setLots(lotsData ?? []);
+      setLoading(false);
+    }
+    loadData();
+  }, [id]);
 
-export default async function AuctionDetailPage({
-  params,
-}: {
-  params: { id: string };
-}) {
-  const data = await getAuction(params.id);
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-zinc-500 text-sm">Loading...</p>
+      </div>
+    );
+  }
 
-  if (!data) notFound();
-
-  const { auction, lots } = data;
+  if (!auction) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-zinc-500 text-sm">Auction not found</p>
+      </div>
+    );
+  }
 
   const sellThrough =
     auction.total_lots > 0
@@ -121,7 +149,12 @@ export default async function AuctionDetailPage({
         </Link>
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="page-title">{auction.name}</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="page-title">{auction.name}</h1>
+              {auction.sale_number && (
+                <span className="badge badge-amber">{auction.sale_number}</span>
+              )}
+            </div>
             <p className="text-zinc-500 text-sm mt-1">
               {formatDate(auction.date)}
               {auction.location ? ` · ${auction.location}` : ""}
@@ -172,8 +205,8 @@ export default async function AuctionDetailPage({
                       {lot.title}
                     </p>
                     <p className="text-xs text-zinc-500 mt-0.5">
-                      {lot.artist ?? "Unknown artist"}
-                      {lot.category ? ` · ${lot.category}` : ""}
+                      {lot.department ?? lot.category ?? "—"}
+                      {lot.category && lot.department ? ` · ${lot.category}` : ""}
                     </p>
                   </div>
                   <div className="text-right flex-shrink-0">
@@ -246,7 +279,7 @@ export default async function AuctionDetailPage({
               <tr className="border-b border-zinc-800">
                 <th className="table-header text-left py-3 px-6">Lot</th>
                 <th className="table-header text-left py-3 px-6">Title</th>
-                <th className="table-header text-left py-3 px-6">Artist</th>
+                <th className="table-header text-left py-3 px-6">Department</th>
                 <th className="table-header text-left py-3 px-6">Category</th>
                 <th className="table-header text-right py-3 px-6">Estimate</th>
                 <th className="table-header text-right py-3 px-6">Hammer</th>
@@ -266,9 +299,9 @@ export default async function AuctionDetailPage({
                     {lot.title}
                   </td>
                   <td className="table-cell px-6 text-zinc-400">
-                    {lot.artist ?? "—"}
+                    {lot.department ?? "—"}
                   </td>
-                  <td className="table-cell px-6">
+                  <td className="table-cell px-6 text-zinc-400">
                     {lot.category ?? "—"}
                   </td>
                   <td className="table-cell text-right px-6 text-zinc-400">
