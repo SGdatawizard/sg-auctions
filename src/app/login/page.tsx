@@ -22,11 +22,19 @@ export default function LoginPage() {
       password,
     });
 
-    if (error) {
-      setError("Invalid email or password. Please try again.");
-      setLoading(false);
-      return;
-    }
+    console.log("Auth response:", { data, error });
+
+if (error) {
+  setError(`Error: ${error.message}`);
+  setLoading(false);
+  return;
+}
+
+if (!data.session) {
+  setError("No session returned — check Supabase config");
+  setLoading(false);
+  return;
+}
 
     router.push("/dashboard");
     router.refresh();
