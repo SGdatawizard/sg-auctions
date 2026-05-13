@@ -32,9 +32,7 @@ export default function LoginPage() {
       return;
     }
 
-    // Small delay to ensure cookie is set before redirect
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    window.location.replace("/dashboard");
+    window.location.href = "/dashboard";
   }
 
   return (
