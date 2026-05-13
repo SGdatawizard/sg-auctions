@@ -22,8 +22,6 @@ export default function LoginPage() {
       password,
     });
 
-    console.log("Auth response:", { authData, error });
-
     if (error) {
       setError(`Error: ${error.message}`);
       setLoading(false);
@@ -36,8 +34,9 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/dashboard");
-    router.refresh();
+    // Use window.location for a hard redirect so middleware
+    // picks up the session cookie cleanly
+    window.location.href = "/dashboard";
   }
 
   return (
