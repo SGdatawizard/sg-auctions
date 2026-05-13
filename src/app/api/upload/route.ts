@@ -164,4 +164,254 @@ export async function POST(request: NextRequest) {
         hammer_price: hammerPrice,
         hammer_and_bp: num(row["Hammer & BP (VAT incl.)"]),
         tax_status: str(row["Tax Status"]),
-        commissi
+        commission_rate: str(row["Commission Rate"]),
+        sold: isSold,
+        currency: "GBP",
+      };
+    });
+
+    // Batch insert lots in chunks of 100
+    const chunkSize = 100;
+    const insertedLots: {
+      id: string;
+      sold: boolean;
+      hammer_price: number | null;
+      lot_number: string | null;
+    }[] = [];
+
+    for (let i = 0; i < lotsToInsert.length; i += chunkSize) {
+      const chunk = lotsToInsert.slice(i, i + chunkSize);
+      const { data: inserted, error: lotsError } = await supabase
+        .from("lots")
+        .insert(chunk)
+        .select("id, sold, hammer_price, lot_number");
+
+      if (lotsError) {
+        console.error("Lots insert error:", lotsError);
+        await supabase.from("auctions").delete().eq("id", auction.id);
+        return NextResponse.json(
+          { error: "Failed to insert lots" },
+          { status: 500 }
+        );
+      }
+
+      if (inserted) insertedLots.push(...inserted);
+    }
+
+    // Calculate stats
+    const soldLots = insertedLots.filter((l) => l.sold);
+    const totalHammerValue = soldLots.reduce(
+      (sum, l) => sum + (l.hammer_price ?? 0), 0
+    );
+
+    // Build lot number -> id map
+    const lotMap = new Map(insertedLots.map((l) => [l.lot_number, l.id]));
+
+    // ── Vendors ──────────────────────────────────────────────────────
+    const vendorMap = new Map<string, { name: string | null; email: string; country: string | null }>();
+    for (const row of rows) {
+      const vendorEmail = str(row["Vendor Email"]);
+      if (vendorEmail && !vendorMap.has(vendorEmail)) {
+        vendorMap.set(vendorEmail, {
+          name: str(row["Vendor"]),
+          email: vendorEmail,
+          country: str(row["Vendor Shipping Country"]),
+        });
+      }
+    }
+
+    const vendorEmailToId = new Map<string, string>();
+    if (vendorMap.size > 0) {
+      const vendorEmails = Array.from(vendorMap.keys());
+      const { data: existingVendors } = await supabase
+        .from("vendors")
+        .select("id, email")
+        .in("email", vendorEmails);
+
+      if (existingVendors) {
+        for (const v of existingVendors) {
+          if (v.email) vendorEmailToId.set(v.email, v.id);
+        }
+      }
+
+      const newVendors = Array.from(vendorMap.values()).filter(
+        (v) => !vendorEmailToId.has(v.email)
+      );
+
+      if (newVendors.length > 0) {
+        const { data: inserted } = await supabase
+          .from("vendors")
+          .insert(newVendors)
+          .select("id, email");
+        if (inserted) {
+          for (const v of inserted) {
+            if (v.email) vendorEmailToId.set(v.email, v.id);
+          }
+        }
+      }
+    }
+
+    // ── Buyers ───────────────────────────────────────────────────────
+    const buyerMap = new Map<string, { name: string | null; email: string; country: string | null }>();
+    for (const row of rows) {
+      const hammerPrice = num(row["Hammer Price"]);
+      const isSold = hammerPrice !== null && hammerPrice > 0;
+      const buyerEmail = str(row["Buyer Email"]);
+      if (isSold && buyerEmail && !buyerMap.has(buyerEmail)) {
+        buyerMap.set(buyerEmail, {
+          name: str(row["Buyer"]),
+          email: buyerEmail,
+          country: str(row["Buyer Shipping Country"]),
+        });
+      }
+    }
+
+    const buyerEmailToId = new Map<string, string>();
+    if (buyerMap.size > 0) {
+      const buyerEmails = Array.from(buyerMap.keys());
+      const { data: existingBuyers } = await supabase
+        .from("buyers")
+        .select("id, email")
+        .in("email", buyerEmails);
+
+      if (existingBuyers) {
+        for (const b of existingBuyers) {
+          if (b.email) buyerEmailToId.set(b.email, b.id);
+        }
+      }
+
+      const newBuyers = Array.from(buyerMap.values()).filter(
+        (b) => !buyerEmailToId.has(b.email)
+      );
+
+      if (newBuyers.length > 0) {
+        const { data: inserted } = await supabase
+          .from("buyers")
+          .insert(newBuyers)
+          .select("id, email");
+        if (inserted) {
+          for (const b of inserted) {
+            if (b.email) buyerEmailToId.set(b.email, b.id);
+          }
+        }
+      }
+    }
+
+    // ── Describers ───────────────────────────────────────────────────
+    const describerNames = new Set<string>();
+    for (const row of rows) {
+      const name = str(row["Lot Created By"] ?? row["Lot created By"] ?? row["Lot created by"]);
+      if (name) describerNames.add(name);
+    }
+
+    const describerNameToId = new Map<string, string>();
+    if (describerNames.size > 0) {
+      const names = Array.from(describerNames);
+
+      const { data: existingDescribers } = await supabase
+        .from("describers")
+        .select("id, name")
+        .in("name", names);
+
+      if (existingDescribers) {
+        for (const d of existingDescribers) {
+          describerNameToId.set(d.name, d.id);
+        }
+      }
+
+      const newDescribers = names
+        .filter((name) => !describerNameToId.has(name))
+        .map((name) => ({ name }));
+
+      if (newDescribers.length > 0) {
+        const { data: inserted } = await supabase
+          .from("describers")
+          .insert(newDescribers)
+          .select("id, name");
+        if (inserted) {
+          for (const d of inserted) {
+            describerNameToId.set(d.name, d.id);
+          }
+        }
+      }
+    }
+
+    // ── Junction tables ──────────────────────────────────────────────
+    const lotVendors: { lot_id: string; vendor_id: string }[] = [];
+    const lotBuyers: { lot_id: string; buyer_id: string }[] = [];
+    const lotDescribers: { lot_id: string; describer_id: string }[] = [];
+
+    for (const row of rows) {
+      const lotNo = str(row["Lot No"]);
+      const lotId = lotNo ? lotMap.get(lotNo) : undefined;
+      if (!lotId) continue;
+
+      const vendorEmail = str(row["Vendor Email"]);
+      if (vendorEmail) {
+        const vendorId = vendorEmailToId.get(vendorEmail);
+        if (vendorId) lotVendors.push({ lot_id: lotId, vendor_id: vendorId });
+      }
+
+      const hammerPrice = num(row["Hammer Price"]);
+      const isSold = hammerPrice !== null && hammerPrice > 0;
+      const buyerEmail = str(row["Buyer Email"]);
+      if (isSold && buyerEmail) {
+        const buyerId = buyerEmailToId.get(buyerEmail);
+        if (buyerId) lotBuyers.push({ lot_id: lotId, buyer_id: buyerId });
+      }
+
+      const describerName = str(row["Lot Created By"] ?? row["Lot created By"] ?? row["Lot created by"]);
+      if (describerName) {
+        const describerId = describerNameToId.get(describerName);
+        if (describerId) lotDescribers.push({ lot_id: lotId, describer_id: describerId });
+      }
+    }
+
+    // Batch insert junctions
+    for (let i = 0; i < lotVendors.length; i += chunkSize) {
+      await supabase.from("lot_vendors").insert(lotVendors.slice(i, i + chunkSize));
+    }
+    for (let i = 0; i < lotBuyers.length; i += chunkSize) {
+      await supabase.from("lot_buyers").insert(lotBuyers.slice(i, i + chunkSize));
+    }
+    for (let i = 0; i < lotDescribers.length; i += chunkSize) {
+      await supabase.from("lot_describers").insert(lotDescribers.slice(i, i + chunkSize));
+    }
+
+    // Update auction summary stats
+    await supabase
+      .from("auctions")
+      .update({
+        total_lots: insertedLots.length,
+        lots_sold: soldLots.length,
+        total_hammer_value: totalHammerValue,
+      })
+      .eq("id", auction.id);
+
+    // Log the upload
+    await supabase.from("uploads").insert({
+      filename: file.name,
+      auction_id: auction.id,
+      uploaded_by: user.id,
+      row_count: insertedLots.length,
+      status: "success",
+    });
+
+    return NextResponse.json({
+      success: true,
+      auctionId: auction.id,
+      auctionName,
+      saleNumber,
+      lotsImported: insertedLots.length,
+      lotsSold: soldLots.length,
+      totalHammerValue,
+    });
+
+  } catch (err) {
+    console.error("Upload error:", err);
+    return NextResponse.json(
+      { error: "An unexpected error occurred" },
+      { status: 500 }
+    );
+  }
+}
