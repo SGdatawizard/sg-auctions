@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
     const firstRow = rows[0];
     const auctionName = str(firstRow["Auction"]) ?? "Unnamed Auction";
     const saleNumber = extractSaleNumber(file.name);
-    const auctionDate = parseDate(rows);
+    const auctionDate = (formData.get("auction_date") as string | null) ?? parseDate(rows);
     const auctionLocation = str(firstRow["Item Location"]) ?? null;
 
     // Create auction record
