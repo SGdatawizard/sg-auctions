@@ -18,13 +18,11 @@ function num(value: unknown): number | null {
 }
 
 function extractSaleNumber(filename: string): string | null {
-  // Matches patterns like S26000 in the filename
   const match = filename.match(/[Ss]\d{4,6}/);
   return match ? match[0].toUpperCase() : null;
 }
 
 function parseDate(rows: RawRow[]): string {
-  // Try to extract a date from the lot created at field
   for (const row of rows) {
     const val = row["Lot created At"] ?? row["Lot Created At"] ?? row["Item Created At"];
     if (val) {
@@ -39,10 +37,34 @@ function parseDate(rows: RawRow[]): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    // Get the access token from the Authorization header
+    const authHeader = request.headers.get("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
+    }
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    const accessToken = authHeader.replace("Bearer ", "");
+
+    // Use the anon client but set the session manually
+    const { createClient: createSupabaseClient } = await import("@supabase/supabase-js");
+    const supabase = createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        auth: {
+          persistSession: false,
+        },
+        global: {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      }
+    );
+
+    // Verify the token is valid
+    const { data: { user }, error: userError } = await supabase.auth.getUser(accessToken);
+    if (userError || !user) {
       return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
     }
 
@@ -140,7 +162,6 @@ export async function POST(request: NextRequest) {
       const hammerPrice = num(row["Hammer Price"]);
       const isSold = hammerPrice !== null && hammerPrice > 0;
 
-      // Insert lot
       const { data: lot, error: lotError } = await supabase
         .from("lots")
         .insert({
@@ -177,13 +198,12 @@ export async function POST(request: NextRequest) {
         totalHammerValue += hammerPrice ?? 0;
       }
 
-      // Handle vendor (name, email, country only)
+      // Handle vendor
       const vendorName = str(row["Vendor"]);
       const vendorEmail = str(row["Vendor Email"]);
       const vendorCountry = str(row["Vendor Shipping Country"]);
 
       if (vendorName || vendorEmail) {
-        // Check if vendor already exists by email
         let vendorId: string | null = null;
 
         if (vendorEmail) {
@@ -192,35 +212,24 @@ export async function POST(request: NextRequest) {
             .select("id")
             .eq("email", vendorEmail)
             .single();
-
-          if (existing) {
-            vendorId = existing.id;
-          }
+          if (existing) vendorId = existing.id;
         }
 
         if (!vendorId) {
           const { data: newVendor } = await supabase
             .from("vendors")
-            .insert({
-              name: vendorName,
-              email: vendorEmail,
-              country: vendorCountry,
-            })
+            .insert({ name: vendorName, email: vendorEmail, country: vendorCountry })
             .select()
             .single();
-
           if (newVendor) vendorId = newVendor.id;
         }
 
         if (vendorId) {
-          await supabase.from("lot_vendors").insert({
-            lot_id: lot.id,
-            vendor_id: vendorId,
-          });
+          await supabase.from("lot_vendors").insert({ lot_id: lot.id, vendor_id: vendorId });
         }
       }
 
-      // Handle buyer (name, email, country only)
+      // Handle buyer
       const buyerName = str(row["Buyer"]);
       const buyerEmail = str(row["Buyer Email"]);
       const buyerCountry = str(row["Buyer Shipping Country"]);
@@ -234,31 +243,20 @@ export async function POST(request: NextRequest) {
             .select("id")
             .eq("email", buyerEmail)
             .single();
-
-          if (existing) {
-            buyerId = existing.id;
-          }
+          if (existing) buyerId = existing.id;
         }
 
         if (!buyerId) {
           const { data: newBuyer } = await supabase
             .from("buyers")
-            .insert({
-              name: buyerName,
-              email: buyerEmail,
-              country: buyerCountry,
-            })
+            .insert({ name: buyerName, email: buyerEmail, country: buyerCountry })
             .select()
             .single();
-
           if (newBuyer) buyerId = newBuyer.id;
         }
 
         if (buyerId) {
-          await supabase.from("lot_buyers").insert({
-            lot_id: lot.id,
-            buyer_id: buyerId,
-          });
+          await supabase.from("lot_buyers").insert({ lot_id: lot.id, buyer_id: buyerId });
         }
       }
     }
