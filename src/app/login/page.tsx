@@ -17,24 +17,24 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data: authData, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
-    console.log("Auth response:", { data, error });
+    console.log("Auth response:", { authData, error });
 
-if (error) {
-  setError(`Error: ${error.message}`);
-  setLoading(false);
-  return;
-}
+    if (error) {
+      setError(`Error: ${error.message}`);
+      setLoading(false);
+      return;
+    }
 
-if (!data.session) {
-  setError("No session returned — check Supabase config");
-  setLoading(false);
-  return;
-}
+    if (!authData.session) {
+      setError("No session returned — check Supabase config");
+      setLoading(false);
+      return;
+    }
 
     router.push("/dashboard");
     router.refresh();
