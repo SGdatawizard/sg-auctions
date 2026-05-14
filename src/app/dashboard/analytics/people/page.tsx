@@ -3,13 +3,12 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatCurrency } from "@/lib/utils/formatters";
-import { AUCTION_CATEGORIES, type Auction } from "@/lib/types/database";
+import { AUCTION_CATEGORIES, type Auction, maskName } from "@/lib/types/database";
 import { Users, ShoppingBag } from "lucide-react";
 
 type PersonRow = {
   id: string;
   name: string | null;
-  email: string | null;
   country: string | null;
   totalLots: number;
   totalValue: number;
@@ -74,7 +73,7 @@ export default function PeoplePage() {
         const { data: lotBuyers } = await supabase.from("lot_buyers").select("lot_id, buyer_id").in("lot_id", soldLotIds);
         if (lotBuyers && lotBuyers.length > 0) {
           const buyerIds = Array.from(new Set(lotBuyers.map((lb) => lb.buyer_id)));
-          const { data: buyerDetails } = await supabase.from("buyers").select("id, name, email, country").in("id", buyerIds);
+          const { data: buyerDetails } = await supabase.from("buyers").select("id, name, country").in("id", buyerIds);
           if (buyerDetails) {
             const buyerStats = new Map<string, { lots: number; spend: number }>();
             for (const lb of lotBuyers) {
@@ -85,7 +84,7 @@ export default function PeoplePage() {
               }
             }
             const buyers: PersonRow[] = buyerDetails
-              .map((b) => ({ id: b.id, name: b.name, email: b.email, country: b.country, totalLots: buyerStats.get(b.id)?.lots ?? 0, totalValue: buyerStats.get(b.id)?.spend ?? 0 }))
+              .map((b) => ({ id: b.id, name: b.name, country: b.country, totalLots: buyerStats.get(b.id)?.lots ?? 0, totalValue: buyerStats.get(b.id)?.spend ?? 0 }))
               .sort((a, b) => b.totalValue - a.totalValue)
               .slice(0, 10);
             setTopBuyers(buyers);
@@ -101,7 +100,7 @@ export default function PeoplePage() {
         const { data: lotVendors } = await supabase.from("lot_vendors").select("lot_id, vendor_id").in("lot_id", lotIds);
         if (lotVendors && lotVendors.length > 0) {
           const vendorIds = Array.from(new Set(lotVendors.map((lv) => lv.vendor_id)));
-          const { data: vendorDetails } = await supabase.from("vendors").select("id, name, email, country").in("id", vendorIds);
+          const { data: vendorDetails } = await supabase.from("vendors").select("id, name, country").in("id", vendorIds);
           if (vendorDetails) {
             const vendorStats = new Map<string, { lots: number; value: number }>();
             for (const lv of lotVendors) {
@@ -112,7 +111,7 @@ export default function PeoplePage() {
               }
             }
             const vendors: PersonRow[] = vendorDetails
-              .map((v) => ({ id: v.id, name: v.name, email: v.email, country: v.country, totalLots: vendorStats.get(v.id)?.lots ?? 0, totalValue: vendorStats.get(v.id)?.value ?? 0 }))
+              .map((v) => ({ id: v.id, name: v.name, country: v.country, totalLots: vendorStats.get(v.id)?.lots ?? 0, totalValue: vendorStats.get(v.id)?.value ?? 0 }))
               .sort((a, b) => b.totalValue - a.totalValue)
               .slice(0, 10);
             setTopVendors(vendors);
@@ -190,7 +189,6 @@ export default function PeoplePage() {
                 <tr className="border-b border-[#1e3a6b]">
                   <th className="table-header text-left py-3 px-6">Rank</th>
                   <th className="table-header text-left py-3 px-6">Name</th>
-                  <th className="table-header text-left py-3 px-6">Email</th>
                   <th className="table-header text-left py-3 px-6">Country</th>
                   <th className="table-header text-right py-3 px-6">{activeTab === "buyers" ? "Lots bought" : "Lots consigned"}</th>
                   <th className="table-header text-right py-3 px-6">{activeTab === "buyers" ? "Total spend" : "Total hammer value"}</th>
@@ -204,10 +202,7 @@ export default function PeoplePage() {
                         {i + 1}
                       </span>
                     </td>
-                    <td className="table-cell px-6 font-medium text-[#f7f4ec]">{person.name ?? "—"}</td>
-                    <td className="table-cell px-6 text-[#94aed6]">
-                      {person.email ? (<a href={`mailto:${person.email}`} className="text-gold-400 hover:text-gold-300 transition-colors">{person.email}</a>) : "—"}
-                    </td>
+                    <td className="table-cell px-6 font-medium text-[#f7f4ec]">{maskName(person.name)}</td>
                     <td className="table-cell px-6 text-[#94aed6]">{person.country ?? "—"}</td>
                     <td className="table-cell text-right px-6">{person.totalLots.toLocaleString()}</td>
                     <td className="table-cell text-right px-6 font-medium text-[#f7f4ec]">{formatCurrency(person.totalValue)}</td>

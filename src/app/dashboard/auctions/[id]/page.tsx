@@ -19,6 +19,7 @@ import {
   BarChart3,
 } from "lucide-react";
 import type { Auction, Lot, TopBuyer, TopVendor } from "@/lib/types/database";
+import { maskName } from "@/lib/types/database";
 
 export default function AuctionDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -63,16 +64,14 @@ export default function AuctionDetailPage() {
 
         if (lotBuyers && lotBuyers.length > 0) {
           const buyerIds = Array.from(new Set(lotBuyers.map((lb) => lb.buyer_id)));
-
           const { data: buyerDetails } = await supabase
             .from("buyers")
-            .select("id, name, email, country")
+            .select("id, name, country")
             .in("id", buyerIds);
 
           if (buyerDetails) {
             const soldLots = allLots.filter((l) => l.sold);
             const buyerSpend = new Map<string, { lots: number; spend: number }>();
-
             for (const lb of lotBuyers) {
               const lot = soldLots.find((l) => l.id === lb.lot_id);
               if (lot) {
@@ -83,19 +82,16 @@ export default function AuctionDetailPage() {
                 });
               }
             }
-
             const buyers: TopBuyer[] = buyerDetails
               .map((b) => ({
                 id: b.id,
                 name: b.name,
-                email: b.email,
                 country: b.country,
                 totalLots: buyerSpend.get(b.id)?.lots ?? 0,
                 totalSpend: buyerSpend.get(b.id)?.spend ?? 0,
               }))
               .sort((a, b) => b.totalSpend - a.totalSpend)
               .slice(0, 10);
-
             setTopBuyers(buyers);
           }
         }
@@ -107,15 +103,13 @@ export default function AuctionDetailPage() {
 
         if (lotVendors && lotVendors.length > 0) {
           const vendorIds = Array.from(new Set(lotVendors.map((lv) => lv.vendor_id)));
-
           const { data: vendorDetails } = await supabase
             .from("vendors")
-            .select("id, name, email, country")
+            .select("id, name, country")
             .in("id", vendorIds);
 
           if (vendorDetails) {
             const vendorStats = new Map<string, { lots: number; value: number }>();
-
             for (const lv of lotVendors) {
               const lot = allLots.find((l) => l.id === lv.lot_id);
               if (lot) {
@@ -126,19 +120,16 @@ export default function AuctionDetailPage() {
                 });
               }
             }
-
             const vendors: TopVendor[] = vendorDetails
               .map((v) => ({
                 id: v.id,
                 name: v.name,
-                email: v.email,
                 country: v.country,
                 totalLots: vendorStats.get(v.id)?.lots ?? 0,
                 totalHammerValue: vendorStats.get(v.id)?.value ?? 0,
               }))
               .sort((a, b) => b.totalHammerValue - a.totalHammerValue)
               .slice(0, 10);
-
             setTopVendors(vendors);
           }
         }
@@ -165,16 +156,8 @@ export default function AuctionDetailPage() {
     );
   }
 
-  const sellThrough =
-    auction.total_lots > 0
-      ? (auction.lots_sold / auction.total_lots) * 100
-      : 0;
-
-  const avgHammer =
-    auction.lots_sold > 0
-      ? auction.total_hammer_value / auction.lots_sold
-      : 0;
-
+  const sellThrough = auction.total_lots > 0 ? (auction.lots_sold / auction.total_lots) * 100 : 0;
+  const avgHammer = auction.lots_sold > 0 ? auction.total_hammer_value / auction.lots_sold : 0;
   const soldLots = lots.filter((l) => l.sold);
   const unsoldLots = lots.filter((l) => !l.sold);
 
@@ -197,47 +180,16 @@ export default function AuctionDetailPage() {
     .sort((a, b) => b.value - a.value);
 
   const stats = [
-    {
-      label: "Total hammer value",
-      value: formatCurrency(auction.total_hammer_value),
-      icon: TrendingUp,
-      color: "text-emerald-400",
-      bg: "bg-emerald-500/10",
-      border: "border-emerald-500/20",
-    },
-    {
-      label: "Sell-through rate",
-      value: formatPercent(sellThrough),
-      icon: PackageCheck,
-      color: "text-blue-400",
-      bg: "bg-blue-500/10",
-      border: "border-blue-500/20",
-    },
-    {
-      label: "Lots offered",
-      value: auction.total_lots.toLocaleString(),
-      icon: Gavel,
-      color: "text-gold-400",
-      bg: "bg-gold-500/10",
-      border: "border-gold-500/20",
-    },
-    {
-      label: "Average lot value",
-      value: formatCurrency(avgHammer),
-      icon: BarChart3,
-      color: "text-purple-400",
-      bg: "bg-purple-500/10",
-      border: "border-purple-500/20",
-    },
+    { label: "Total hammer value", value: formatCurrency(auction.total_hammer_value), icon: TrendingUp, color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20" },
+    { label: "Sell-through rate", value: formatPercent(sellThrough), icon: PackageCheck, color: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/20" },
+    { label: "Lots offered", value: auction.total_lots.toLocaleString(), icon: Gavel, color: "text-gold-400", bg: "bg-gold-500/10", border: "border-gold-500/20" },
+    { label: "Average lot value", value: formatCurrency(avgHammer), icon: BarChart3, color: "text-purple-400", bg: "bg-purple-500/10", border: "border-purple-500/20" },
   ];
 
   return (
     <div className="space-y-8">
       <div>
-        <Link
-          href="/dashboard/auctions"
-          className="inline-flex items-center gap-1.5 text-[#6687bc] hover:text-[#f7f4ec] text-sm mb-4 transition-colors"
-        >
+        <Link href="/dashboard/auctions" className="inline-flex items-center gap-1.5 text-[#6687bc] hover:text-[#f7f4ec] text-sm mb-4 transition-colors">
           <ArrowLeft size={14} />
           Back to auctions
         </Link>
@@ -245,21 +197,14 @@ export default function AuctionDetailPage() {
           <div>
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="page-title">{auction.name}</h1>
-              {auction.sale_number && (
-                <span className="badge badge-amber">{auction.sale_number}</span>
-              )}
-              {auction.auction_category && (
-                <span className="badge badge-green">{auction.auction_category}</span>
-              )}
+              {auction.sale_number && (<span className="badge badge-amber">{auction.sale_number}</span>)}
+              {auction.auction_category && (<span className="badge badge-green">{auction.auction_category}</span>)}
             </div>
             <p className="text-[#6687bc] text-sm mt-1">
-              {formatDate(auction.date)}
-              {auction.location ? ` · ${auction.location}` : ""}
+              {formatDate(auction.date)}{auction.location ? ` · ${auction.location}` : ""}
             </p>
           </div>
-          <span className={getSellThroughBadge(sellThrough)}>
-            {formatPercent(sellThrough)} sell-through
-          </span>
+          <span className={getSellThroughBadge(sellThrough)}>{formatPercent(sellThrough)} sell-through</span>
         </div>
       </div>
 
@@ -318,10 +263,7 @@ export default function AuctionDetailPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="flex-1 bg-[#1e3a6b] rounded-full h-1.5">
-                      <div
-                        className="bg-gold-500 h-1.5 rounded-full transition-all"
-                        style={{ width: `${cat.total > 0 ? (cat.sold / cat.total) * 100 : 0}%` }}
-                      />
+                      <div className="bg-gold-500 h-1.5 rounded-full transition-all" style={{ width: `${cat.total > 0 ? (cat.sold / cat.total) * 100 : 0}%` }} />
                     </div>
                     <span className="text-xs text-[#6687bc] w-16 text-right">{cat.sold}/{cat.total} sold</span>
                   </div>
@@ -400,7 +342,6 @@ export default function AuctionDetailPage() {
                   <tr className="border-b border-[#1e3a6b]">
                     <th className="table-header text-left py-3 px-6">Rank</th>
                     <th className="table-header text-left py-3 px-6">Buyer</th>
-                    <th className="table-header text-left py-3 px-6">Email</th>
                     <th className="table-header text-left py-3 px-6">Country</th>
                     <th className="table-header text-right py-3 px-6">Lots bought</th>
                     <th className="table-header text-right py-3 px-6">Total spend</th>
@@ -410,8 +351,7 @@ export default function AuctionDetailPage() {
                   {topBuyers.map((buyer, i) => (
                     <tr key={buyer.id} className="border-b border-[#1e3a6b]/50 hover:bg-[#1e3a6b]/30 transition-colors">
                       <td className="table-cell px-6 text-[#6687bc] font-mono text-xs">{i + 1}</td>
-                      <td className="table-cell px-6 font-medium text-[#f7f4ec]">{buyer.name ?? "—"}</td>
-                      <td className="table-cell px-6 text-[#94aed6]">{buyer.email ?? "—"}</td>
+                      <td className="table-cell px-6 font-medium text-[#f7f4ec]">{maskName(buyer.name)}</td>
                       <td className="table-cell px-6 text-[#94aed6]">{buyer.country ?? "—"}</td>
                       <td className="table-cell text-right px-6">{buyer.totalLots}</td>
                       <td className="table-cell text-right px-6 font-medium text-[#f7f4ec]">{formatCurrency(buyer.totalSpend)}</td>
@@ -435,7 +375,6 @@ export default function AuctionDetailPage() {
                   <tr className="border-b border-[#1e3a6b]">
                     <th className="table-header text-left py-3 px-6">Rank</th>
                     <th className="table-header text-left py-3 px-6">Vendor</th>
-                    <th className="table-header text-left py-3 px-6">Email</th>
                     <th className="table-header text-left py-3 px-6">Country</th>
                     <th className="table-header text-right py-3 px-6">Lots consigned</th>
                     <th className="table-header text-right py-3 px-6">Total hammer value</th>
@@ -445,8 +384,7 @@ export default function AuctionDetailPage() {
                   {topVendors.map((vendor, i) => (
                     <tr key={vendor.id} className="border-b border-[#1e3a6b]/50 hover:bg-[#1e3a6b]/30 transition-colors">
                       <td className="table-cell px-6 text-[#6687bc] font-mono text-xs">{i + 1}</td>
-                      <td className="table-cell px-6 font-medium text-[#f7f4ec]">{vendor.name ?? "—"}</td>
-                      <td className="table-cell px-6 text-[#94aed6]">{vendor.email ?? "—"}</td>
+                      <td className="table-cell px-6 font-medium text-[#f7f4ec]">{maskName(vendor.name)}</td>
                       <td className="table-cell px-6 text-[#94aed6]">{vendor.country ?? "—"}</td>
                       <td className="table-cell text-right px-6">{vendor.totalLots}</td>
                       <td className="table-cell text-right px-6 font-medium text-[#f7f4ec]">{formatCurrency(vendor.totalHammerValue)}</td>

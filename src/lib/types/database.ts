@@ -178,16 +178,19 @@ export interface Database {
           id: string;
           created_at: string;
           name: string;
+          email: string | null;
         };
         Insert: {
           id?: string;
           created_at?: string;
           name: string;
+          email?: string | null;
         };
         Update: {
           id?: string;
           created_at?: string;
           name?: string;
+          email?: string | null;
         };
       };
       lot_vendors: {
@@ -324,12 +327,13 @@ export type EstimateRange = {
 };
 
 export const ESTIMATE_RANGES: EstimateRange[] = [
-  { label: "£100–£300",     min: 100,   max: 300   },
-  { label: "£301–£500",     min: 301,   max: 500   },
-  { label: "£501–£1,000",   min: 501,   max: 1000  },
-  { label: "£1,001–£2,500", min: 1001,  max: 2500  },
-  { label: "£2,501–£5,000", min: 2501,  max: 5000  },
-  { label: "£5,000+",       min: 5001,  max: null  },
+  { label: "£0–£99",       min: 0,    max: 99   },
+  { label: "£100–£300",    min: 100,  max: 300  },
+  { label: "£301–£500",    min: 301,  max: 500  },
+  { label: "£501–£1,000",  min: 501,  max: 1000 },
+  { label: "£1,001–£2,500", min: 1001, max: 2500 },
+  { label: "£2,501–£5,000", min: 2501, max: 5000 },
+  { label: "£5,000+",      min: 5001, max: null },
 ];
 
 export const AUCTION_CATEGORIES = ["Stamps", "Coins", "Pop Culture"] as const;
@@ -338,6 +342,7 @@ export type AuctionCategory = typeof AUCTION_CATEGORIES[number];
 export type DescriberSummary = {
   id: string;
   name: string;
+  email: string | null;
   totalLots: number;
   totalSold: number;
   totalHammerValue: number;
@@ -362,13 +367,11 @@ export type UnsoldLot = {
   estimateHigh: number | null;
   reserve: number | null;
   vendorName: string | null;
-  vendorEmail: string | null;
 };
 
 export type TopBuyer = {
   id: string;
   name: string | null;
-  email: string | null;
   country: string | null;
   totalLots: number;
   totalSpend: number;
@@ -377,8 +380,31 @@ export type TopBuyer = {
 export type TopVendor = {
   id: string;
   name: string | null;
-  email: string | null;
   country: string | null;
   totalLots: number;
   totalHammerValue: number;
 };
+
+// Masks a full name to "F. Sur***" format for GDPR compliance
+export function maskName(fullName: string | null): string {
+  if (!fullName) return "—";
+  const parts = fullName.trim().split(/[\s,]+/).filter(Boolean);
+  if (parts.length === 0) return "—";
+  if (parts.length === 1) {
+    const n = parts[0];
+    return n.length <= 3 ? n[0] + "***" : n[0] + ". " + n.slice(1, 4) + "***";
+  }
+  // Handle "Surname, Firstname" format from your Excel
+  let first: string;
+  let last: string;
+  if (fullName.includes(",")) {
+    last = parts[0];
+    first = parts[1];
+  } else {
+    first = parts[0];
+    last = parts[parts.length - 1];
+  }
+  const firstInitial = first[0].toUpperCase();
+  const surnamePartial = last.slice(0, 3);
+  return `${firstInitial}. ${surnamePartial}***`;
+}

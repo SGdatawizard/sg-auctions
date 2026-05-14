@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatCurrency } from "@/lib/utils/formatters";
-import { AUCTION_CATEGORIES, type Auction } from "@/lib/types/database";
+import { AUCTION_CATEGORIES, type Auction, maskName } from "@/lib/types/database";
 import { PackageX } from "lucide-react";
 
 type UnsoldLotRow = {
@@ -17,7 +17,6 @@ type UnsoldLotRow = {
   estimateHigh: number | null;
   reserve: number | null;
   vendorName: string | null;
-  vendorEmail: string | null;
 };
 
 type DescriberUnsold = {
@@ -84,18 +83,18 @@ export default function UnsoldLotsPage() {
       const { data: lotVendors } = await supabase.from("lot_vendors").select("lot_id, vendor_id").in("lot_id", lotIds);
 
       const vendorIds = Array.from(new Set((lotVendors ?? []).map((lv) => lv.vendor_id)));
-      const vendorMap = new Map<string, { name: string | null; email: string | null }>();
+      const vendorMap = new Map<string, { name: string | null }>();
 
       if (vendorIds.length > 0) {
-        const { data: vendors } = await supabase.from("vendors").select("id, name, email").in("id", vendorIds);
+        const { data: vendors } = await supabase.from("vendors").select("id, name").in("id", vendorIds);
         if (vendors) {
           for (const v of vendors) {
-            vendorMap.set(v.id, { name: v.name, email: v.email });
+            vendorMap.set(v.id, { name: v.name });
           }
         }
       }
 
-      const lotToVendor = new Map<string, { name: string | null; email: string | null }>();
+      const lotToVendor = new Map<string, { name: string | null }>();
       for (const lv of lotVendors ?? []) {
         const vendor = vendorMap.get(lv.vendor_id);
         if (vendor) lotToVendor.set(lv.lot_id, vendor);
@@ -133,7 +132,6 @@ export default function UnsoldLotsPage() {
           estimateHigh: lot.estimate_high,
           reserve: lot.reserve,
           vendorName: vendor?.name ?? null,
-          vendorEmail: vendor?.email ?? null,
         };
         const existing = describerToLots.get(ld.describer_id);
         if (existing) {
@@ -242,7 +240,6 @@ export default function UnsoldLotsPage() {
                       <th className="table-header text-right py-3 px-4">Estimate</th>
                       <th className="table-header text-right py-3 px-4">Reserve</th>
                       <th className="table-header text-left py-3 px-4">Vendor</th>
-                      <th className="table-header text-left py-3 px-4">Vendor email</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -261,10 +258,7 @@ export default function UnsoldLotsPage() {
                           {lot.estimateLow && lot.estimateHigh ? `${formatCurrency(lot.estimateLow)} – ${formatCurrency(lot.estimateHigh)}` : lot.estimateLow ? formatCurrency(lot.estimateLow) : "—"}
                         </td>
                         <td className="table-cell text-right px-4 text-[#94aed6]">{lot.reserve ? formatCurrency(lot.reserve) : "—"}</td>
-                        <td className="table-cell px-4 text-[#94aed6]">{lot.vendorName ?? "—"}</td>
-                        <td className="table-cell px-4">
-                          {lot.vendorEmail ? (<a href={`mailto:${lot.vendorEmail}`} className="text-gold-400 hover:text-gold-300 transition-colors text-sm">{lot.vendorEmail}</a>) : "—"}
-                        </td>
+                        <td className="table-cell px-4 text-[#94aed6]">{maskName(lot.vendorName)}</td>
                       </tr>
                     ))}
                   </tbody>
