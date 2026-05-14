@@ -1,125 +1,140 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+"use client";
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import {
+  LayoutDashboard,
+  Gavel,
+  Upload,
+  BarChart3,
+  LogOut,
+} from "lucide-react";
+import { clsx } from "clsx";
 
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
-}
+const navigation = [
+  {
+    name: "Overview",
+    href: "/dashboard",
+    icon: LayoutDashboard,
+  },
+  {
+    name: "Auctions",
+    href: "/dashboard/auctions",
+    icon: Gavel,
+  },
+  {
+    name: "Analytics",
+    href: "/dashboard/analytics",
+    icon: BarChart3,
+    children: [
+      {
+        name: "Year on year",
+        href: "/dashboard/analytics",
+      },
+      {
+        name: "Describers",
+        href: "/dashboard/analytics/describers",
+      },
+    ],
+  },
+  {
+    name: "Upload Data",
+    href: "/dashboard/upload",
+    icon: Upload,
+  },
+];
 
-html,
-body {
-  max-width: 100vw;
-  overflow-x: hidden;
-}
+export default function Sidebar({ user }: { user: { email?: string } }) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const supabase = createClient();
 
-body {
-  font-family: 'Inter', system-ui, sans-serif;
-  background-color: #0f0f0f;
-  color: #f5f5f5;
-}
-
-/* Scrollbar styling */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: #1a1a1a;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #3a3a3a;
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #4a4a4a;
-}
-
-/* Selection colour */
-::selection {
-  background-color: #d4861f40;
-  color: #f5f5f5;
-}
-
-/* Focus styles for accessibility */
-:focus-visible {
-  outline: 2px solid #d4861f;
-  outline-offset: 2px;
-}
-
-/* Utility classes */
-@layer components {
-  .card {
-    @apply bg-zinc-900 border border-zinc-800 rounded-xl p-6;
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
   }
 
-  .card-sm {
-    @apply bg-zinc-900 border border-zinc-800 rounded-lg p-4;
-  }
+  return (
+    <aside className="fixed left-0 top-0 h-screen w-64 bg-[#0a1a11] border-r border-[#1c3d2b] flex flex-col">
 
-  .btn-primary {
-    @apply bg-brand-500 hover:bg-brand-600 text-white font-medium px-4 py-2 rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed;
-  }
+      {/* Logo */}
+      <div className="p-6 border-b border-[#1c3d2b]">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-gold-500/10 border border-gold-500/30 flex items-center justify-center">
+            <span className="text-sm font-bold text-gold-400">SG</span>
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-[#f0f7f4]">SG Auctions</p>
+            <p className="text-xs text-[#4da382]">Dashboard</p>
+          </div>
+        </div>
+      </div>
 
-  .btn-secondary {
-    @apply bg-zinc-800 hover:bg-zinc-700 text-zinc-100 font-medium px-4 py-2 rounded-lg transition-colors duration-200;
-  }
+      {/* Navigation */}
+      <nav className="flex-1 p-4 space-y-1">
+        {navigation.map((item) => {
+          const isActive =
+            item.href === "/dashboard"
+              ? pathname === "/dashboard"
+              : pathname.startsWith(item.href);
 
-  .btn-ghost {
-    @apply hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 font-medium px-4 py-2 rounded-lg transition-colors duration-200;
-  }
+          return (
+            <div key={item.name}>
+              <Link
+                href={item.href}
+                className={clsx(
+                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors duration-150",
+                  isActive
+                    ? "bg-brand-800/60 text-gold-400 border border-brand-700"
+                    : "text-[#7dc2a6] hover:text-[#f0f7f4] hover:bg-[#1c3d2b]"
+                )}
+              >
+                <item.icon size={18} />
+                {item.name}
+              </Link>
 
-  .input {
-    @apply bg-zinc-800 border border-zinc-700 text-zinc-100 placeholder-zinc-500 rounded-lg px-3 py-2 w-full focus:outline-none focus:border-brand-500 transition-colors duration-200;
-  }
+              {item.children && isActive && (
+                <div className="ml-9 mt-1 space-y-1">
+                  {item.children.map((child) => {
+                    const isChildActive = pathname === child.href;
+                    return (
+                      <Link
+                        key={child.name}
+                        href={child.href}
+                        className={clsx(
+                          "block px-3 py-1.5 rounded-lg text-xs font-medium transition-colors duration-150",
+                          isChildActive
+                            ? "text-gold-400"
+                            : "text-[#4da382] hover:text-[#d9ede5]"
+                        )}
+                      >
+                        {child.name}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </nav>
 
-  .label {
-    @apply text-sm font-medium text-zinc-400 mb-1 block;
-  }
+      {/* User / Sign out */}
+      <div className="p-4 border-t border-[#1c3d2b]">
+        <div className="mb-3 px-3">
+          <p className="text-xs text-[#4da382] truncate">{user.email}</p>
+        </div>
+        <button
+          onClick={handleSignOut}
+          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-[#7dc2a6] hover:text-red-400 hover:bg-red-900/10 transition-colors duration-150 w-full"
+        >
+          <LogOut size={18} />
+          Sign out
+        </button>
+      </div>
 
-  .stat-value {
-    @apply text-3xl font-semibold text-zinc-100;
-  }
-
-  .stat-label {
-    @apply text-sm text-zinc-500 mt-1;
-  }
-
-  .page-title {
-    @apply text-2xl font-semibold text-zinc-100;
-  }
-
-  .section-title {
-    @apply text-lg font-medium text-zinc-200;
-  }
-
-  .table-header {
-    @apply text-xs font-medium text-zinc-500 uppercase tracking-wider;
-  }
-
-  .table-cell {
-    @apply text-sm text-zinc-300 py-3 px-4;
-  }
-
-  .badge {
-    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
-  }
-
-  .badge-green {
-    @apply badge bg-emerald-900/50 text-emerald-400 border border-emerald-800;
-  }
-
-  .badge-red {
-    @apply badge bg-red-900/50 text-red-400 border border-red-800;
-  }
-
-  .badge-amber {
-    @apply badge bg-amber-900/50 text-amber-400 border border-amber-800;
-  }
+    </aside>
+  );
 }
