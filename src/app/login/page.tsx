@@ -36,7 +36,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0d1f17] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[#0e1e38] flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
 
         {/* Logo */}
@@ -44,8 +44,8 @@ export default function LoginPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gold-500/10 border border-gold-500/30 mb-4">
             <span className="text-2xl font-bold text-gold-400">SG</span>
           </div>
-          <h1 className="text-2xl font-semibold text-[#f0f7f4]">SG Auctions</h1>
-          <p className="text-[#4da382] text-sm mt-1">Sign in to your dashboard</p>
+          <h1 className="text-2xl font-semibold text-[#f7f4ec]">SG Auctions</h1>
+          <p className="text-[#6687bc] text-sm mt-1">Sign in to your dashboard</p>
         </div>
 
         {/* Form */}
@@ -126,7 +126,7 @@ export default function LoginPage() {
           </form>
         </div>
 
-        <p className="text-center text-[#2d5c40] text-xs mt-6">
+        <p className="text-center text-[#2f5597] text-xs mt-6">
           SG Auctions — Private & Confidential
         </p>
 
