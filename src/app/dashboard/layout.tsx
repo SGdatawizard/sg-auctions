@@ -30,16 +30,16 @@ export default function DashboardLayout({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-        <div className="text-zinc-500 text-sm">Loading...</div>
+      <div className="min-h-screen bg-[#0e1e38] flex items-center justify-center">
+        <div className="text-[#6687bc] text-sm">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex">
+    <div className="min-h-screen bg-[#0e1e38] flex">
       <Sidebar user={user ?? {}} />
-      <main className="flex-1 ml-64 p-8 overflow-y-auto">
+      <main className="flex-1 ml-64 p-8 overflow-y-auto bg-[#0e1e38]">
         {children}
       </main>
     </div>
