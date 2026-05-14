@@ -18,6 +18,7 @@ export interface Database {
           date: string;
           location: string | null;
           description: string | null;
+          auction_category: string | null;
           total_lots: number;
           lots_sold: number;
           total_hammer_value: number;
@@ -31,6 +32,7 @@ export interface Database {
           date: string;
           location?: string | null;
           description?: string | null;
+          auction_category?: string | null;
           total_lots?: number;
           lots_sold?: number;
           total_hammer_value?: number;
@@ -44,6 +46,7 @@ export interface Database {
           date?: string;
           location?: string | null;
           description?: string | null;
+          auction_category?: string | null;
           total_lots?: number;
           lots_sold?: number;
           total_hammer_value?: number;
@@ -58,6 +61,7 @@ export interface Database {
           lot_number: string | null;
           stock_number: string | null;
           title: string;
+          description: string | null;
           department: string | null;
           category: string | null;
           item_location: string | null;
@@ -81,6 +85,7 @@ export interface Database {
           lot_number?: string | null;
           stock_number?: string | null;
           title: string;
+          description?: string | null;
           department?: string | null;
           category?: string | null;
           item_location?: string | null;
@@ -104,6 +109,7 @@ export interface Database {
           lot_number?: string | null;
           stock_number?: string | null;
           title?: string;
+          description?: string | null;
           department?: string | null;
           category?: string | null;
           item_location?: string | null;
@@ -326,6 +332,9 @@ export const ESTIMATE_RANGES: EstimateRange[] = [
   { label: "£5,000+",       min: 5001,  max: null  },
 ];
 
+export const AUCTION_CATEGORIES = ["Stamps", "Coins", "Pop Culture"] as const;
+export type AuctionCategory = typeof AUCTION_CATEGORIES[number];
+
 export type DescriberSummary = {
   id: string;
   name: string;
@@ -340,4 +349,36 @@ export type DescriberSummary = {
     totalSold: number;
     sellThroughRate: number;
   }[];
+};
+
+export type UnsoldLot = {
+  lotId: string;
+  lotNumber: string | null;
+  stockNumber: string | null;
+  receiptNo: string | null;
+  title: string;
+  description: string | null;
+  estimateLow: number | null;
+  estimateHigh: number | null;
+  reserve: number | null;
+  vendorName: string | null;
+  vendorEmail: string | null;
+};
+
+export type TopBuyer = {
+  id: string;
+  name: string | null;
+  email: string | null;
+  country: string | null;
+  totalLots: number;
+  totalSpend: number;
+};
+
+export type TopVendor = {
+  id: string;
+  name: string | null;
+  email: string | null;
+  country: string | null;
+  totalLots: number;
+  totalHammerValue: number;
 };
