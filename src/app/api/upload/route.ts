@@ -18,7 +18,7 @@ function num(value: unknown): number | null {
 }
 
 function extractSaleNumber(filename: string): string | null {
-  const match = filename.match(/[Ss]\d{4,6}/);
+  const match = filename.match(/[A-Za-z]\d{4,6}/);
   return match ? match[0].toUpperCase() : null;
 }
 
