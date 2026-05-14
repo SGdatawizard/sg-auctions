@@ -8,7 +8,6 @@ import {
   Gavel,
   Upload,
   BarChart3,
-  Users,
   LogOut,
 } from "lucide-react";
 import { clsx } from "clsx";
@@ -58,17 +57,17 @@ export default function Sidebar({ user }: { user: { email?: string } }) {
   }
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-64 bg-zinc-900 border-r border-zinc-800 flex flex-col">
+    <aside className="fixed left-0 top-0 h-screen w-64 bg-[#080f1e] border-r border-[#1e3a6b] flex flex-col">
 
       {/* Logo */}
-      <div className="p-6 border-b border-zinc-800">
+      <div className="p-6 border-b border-[#1e3a6b]">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-brand-500/10 border border-brand-500/20 flex items-center justify-center">
-            <span className="text-sm font-bold text-brand-400">SG</span>
+          <div className="w-9 h-9 rounded-lg bg-gold-500/10 border border-gold-500/30 flex items-center justify-center">
+            <span className="text-sm font-bold text-gold-400">SG</span>
           </div>
           <div>
-            <p className="text-sm font-semibold text-zinc-100">SG Auctions</p>
-            <p className="text-xs text-zinc-500">Dashboard</p>
+            <p className="text-sm font-semibold text-[#f7f4ec]">SG Auctions</p>
+            <p className="text-xs text-[#6687bc]">Dashboard</p>
           </div>
         </div>
       </div>
@@ -88,15 +87,14 @@ export default function Sidebar({ user }: { user: { email?: string } }) {
                 className={clsx(
                   "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors duration-150",
                   isActive
-                    ? "bg-brand-500/10 text-brand-400 border border-brand-500/20"
-                    : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
+                    ? "bg-brand-800 text-gold-400 border border-[#2f5597]"
+                    : "text-[#94aed6] hover:text-[#f7f4ec] hover:bg-[#1e3a6b]"
                 )}
               >
                 <item.icon size={18} />
                 {item.name}
               </Link>
 
-              {/* Sub navigation */}
               {item.children && isActive && (
                 <div className="ml-9 mt-1 space-y-1">
                   {item.children.map((child) => {
@@ -108,8 +106,8 @@ export default function Sidebar({ user }: { user: { email?: string } }) {
                         className={clsx(
                           "block px-3 py-1.5 rounded-lg text-xs font-medium transition-colors duration-150",
                           isChildActive
-                            ? "text-brand-400"
-                            : "text-zinc-500 hover:text-zinc-300"
+                            ? "text-gold-400"
+                            : "text-[#6687bc] hover:text-[#f7f4ec]"
                         )}
                       >
                         {child.name}
@@ -124,13 +122,13 @@ export default function Sidebar({ user }: { user: { email?: string } }) {
       </nav>
 
       {/* User / Sign out */}
-      <div className="p-4 border-t border-zinc-800">
+      <div className="p-4 border-t border-[#1e3a6b]">
         <div className="mb-3 px-3">
-          <p className="text-xs text-zinc-500 truncate">{user.email}</p>
+          <p className="text-xs text-[#6687bc] truncate">{user.email}</p>
         </div>
         <button
           onClick={handleSignOut}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-zinc-400 hover:text-red-400 hover:bg-red-900/10 transition-colors duration-150 w-full"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-[#94aed6] hover:text-red-400 hover:bg-red-900/10 transition-colors duration-150 w-full"
         >
           <LogOut size={18} />
           Sign out
