@@ -83,7 +83,7 @@ export default function UnsoldLotsPage() {
 
       const { data: lotVendors } = await supabase.from("lot_vendors").select("lot_id, vendor_id").in("lot_id", lotIds);
 
-      const vendorIds = [...new Set((lotVendors ?? []).map((lv) => lv.vendor_id))];
+      const vendorIds = Array.from(new Set((lotVendors ?? []).map((lv) => lv.vendor_id)));
       const vendorMap = new Map<string, { name: string | null; email: string | null }>();
 
       if (vendorIds.length > 0) {
@@ -103,7 +103,7 @@ export default function UnsoldLotsPage() {
 
       const { data: lotDescribers } = await supabase.from("lot_describers").select("lot_id, describer_id").in("lot_id", lotIds);
 
-      const describerIds = [...new Set((lotDescribers ?? []).map((ld) => ld.describer_id))];
+      const describerIds = Array.from(new Set((lotDescribers ?? []).map((ld) => ld.describer_id)));
       const describerMap = new Map<string, string>();
 
       if (describerIds.length > 0) {

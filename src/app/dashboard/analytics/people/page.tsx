@@ -25,7 +25,7 @@ export default function PeoplePage() {
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
 
-  const years = [...new Set(auctions.map((a) => new Date(a.date).getFullYear()))].sort((a, b) => b - a);
+  const years = Array.from(new Set(auctions.map((a) => new Date(a.date).getFullYear()))).sort((a, b) => b - a);
 
   useEffect(() => {
     async function loadAuctions() {
@@ -73,7 +73,7 @@ export default function PeoplePage() {
       if (soldLotIds.length > 0) {
         const { data: lotBuyers } = await supabase.from("lot_buyers").select("lot_id, buyer_id").in("lot_id", soldLotIds);
         if (lotBuyers && lotBuyers.length > 0) {
-          const buyerIds = [...new Set(lotBuyers.map((lb) => lb.buyer_id))];
+          const buyerIds = Array.from(new Set(lotBuyers.map((lb) => lb.buyer_id)));
           const { data: buyerDetails } = await supabase.from("buyers").select("id, name, email, country").in("id", buyerIds);
           if (buyerDetails) {
             const buyerStats = new Map<string, { lots: number; spend: number }>();
@@ -100,7 +100,7 @@ export default function PeoplePage() {
       if (lotIds.length > 0) {
         const { data: lotVendors } = await supabase.from("lot_vendors").select("lot_id, vendor_id").in("lot_id", lotIds);
         if (lotVendors && lotVendors.length > 0) {
-          const vendorIds = [...new Set(lotVendors.map((lv) => lv.vendor_id))];
+          const vendorIds = Array.from(new Set(lotVendors.map((lv) => lv.vendor_id)));
           const { data: vendorDetails } = await supabase.from("vendors").select("id, name, email, country").in("id", vendorIds);
           if (vendorDetails) {
             const vendorStats = new Map<string, { lots: number; value: number }>();
