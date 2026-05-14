@@ -35,7 +35,6 @@ export default function UnsoldLotsPage() {
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
 
-  // Load auctions for filter
   useEffect(() => {
     async function loadAuctions() {
       const { data } = await supabase
@@ -47,12 +46,14 @@ export default function UnsoldLotsPage() {
     loadAuctions();
   }, []);
 
-  // Load unsold lots data
   useEffect(() => {
     async function loadData() {
+      if (auctions.length === 0) {
+        setLoading(false);
+        return;
+      }
       setLoading(true);
 
-      // Get filtered auctions
       let filteredAuctions = auctions;
       if (categoryFilter !== "all") {
         filteredAuctions = filteredAuctions.filter(
@@ -73,7 +74,6 @@ export default function UnsoldLotsPage() {
 
       const auctionIds = filteredAuctions.map((a) => a.id);
 
-      // Get all unsold lots for these auctions
       const { data: unsoldLots } = await supabase
         .from("lots")
         .select("id, lot_number, stock_number, receipt_no, title, description, estimate_low, estimate_high, reserve, auction_id")
@@ -88,22 +88,19 @@ export default function UnsoldLotsPage() {
 
       const lotIds = unsoldLots.map((l) => l.id);
 
-      // Get lot_vendors for these lots
       const { data: lotVendors } = await supabase
         .from("lot_vendors")
         .select("lot_id, vendor_id")
         .in("lot_id", lotIds);
 
-      // Get vendor details
       const vendorIds = [...new Set((lotVendors ?? []).map((lv) => lv.vendor_id))];
-      let vendorMap = new Map<string, { name: string | null; email: string | null }>();
+      const vendorMap = new Map<string, { name: string | null; email: string | null }>();
 
       if (vendorIds.length > 0) {
         const { data: vendors } = await supabase
           .from("vendors")
           .select("id, name, email")
           .in("id", vendorIds);
-
         if (vendors) {
           for (const v of vendors) {
             vendorMap.set(v.id, { name: v.name, email: v.email });
@@ -111,29 +108,25 @@ export default function UnsoldLotsPage() {
         }
       }
 
-      // Build lot_id -> vendor map
       const lotToVendor = new Map<string, { name: string | null; email: string | null }>();
       for (const lv of lotVendors ?? []) {
         const vendor = vendorMap.get(lv.vendor_id);
         if (vendor) lotToVendor.set(lv.lot_id, vendor);
       }
 
-      // Get lot_describers for these lots
       const { data: lotDescribers } = await supabase
         .from("lot_describers")
         .select("lot_id, describer_id")
         .in("lot_id", lotIds);
 
-      // Get describer details
       const describerIds = [...new Set((lotDescribers ?? []).map((ld) => ld.describer_id))];
-      let describerMap = new Map<string, string>();
+      const describerMap = new Map<string, string>();
 
       if (describerIds.length > 0) {
         const { data: describers } = await supabase
           .from("describers")
           .select("id, name")
           .in("id", describerIds);
-
         if (describers) {
           for (const d of describers) {
             describerMap.set(d.id, d.name);
@@ -141,7 +134,6 @@ export default function UnsoldLotsPage() {
         }
       }
 
-      // Build describer -> lots map
       const describerToLots = new Map<string, { id: string; name: string; lots: UnsoldLotRow[] }>();
 
       for (const ld of lotDescribers ?? []) {
@@ -190,9 +182,7 @@ export default function UnsoldLotsPage() {
       setLoading(false);
     }
 
-    if (auctions.length > 0 || (auctionFilter === "all" && categoryFilter === "all")) {
-      loadData();
-    }
+    loadData();
   }, [auctionFilter, categoryFilter, auctions]);
 
   const filteredData = selectedDescriber === "all"
@@ -203,7 +193,6 @@ export default function UnsoldLotsPage() {
 
   return (
     <div className="space-y-8">
-
       <div>
         <h1 className="page-title">Unsold lots by describer</h1>
         <p className="text-[#6687bc] text-sm mt-1">
@@ -211,7 +200,6 @@ export default function UnsoldLotsPage() {
         </p>
       </div>
 
-      {/* Filters */}
       <div className="card space-y-4 py-4">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
@@ -276,9 +264,7 @@ export default function UnsoldLotsPage() {
         </div>
       ) : (
         <div className="space-y-8">
-
-          {/* Summary bar */}
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4">
             <div className="card-sm flex items-center gap-3 py-3">
               <PackageX size={16} className="text-red-400" />
               <div>
@@ -287,12 +273,13 @@ export default function UnsoldLotsPage() {
               </div>
             </div>
             <div className="card-sm flex items-center gap-3 py-3">
-              <p className="text-xs text-[#6687bc]">Describers with unsold lots</p>
-              <p className="text-lg font-semibold text-[#f7f4ec]">{describerData.length}</p>
+              <div>
+                <p className="text-xs text-[#6687bc]">Describers with unsold lots</p>
+                <p className="text-lg font-semibold text-[#f7f4ec]">{describerData.length}</p>
+              </div>
             </div>
           </div>
 
-          {/* Per describer tables */}
           {filteredData.map((d) => (
             <div key={d.describerId} className="card p-0 overflow-hidden">
               <div className="px-6 py-4 border-b border-[#1e3a6b] flex items-center justify-between">
@@ -357,11 +344,11 @@ export default function UnsoldLotsPage() {
                         <td className="table-cell px-4 text-[#94aed6]">
                           {lot.vendorName ?? "—"}
                         </td>
-                        <td className="table-cell px-4 text-[#94aed6]">
+                        <td className="table-cell px-4">
                           {lot.vendorEmail ? (
                             
                               href={`mailto:${lot.vendorEmail}`}
-                              className="text-gold-400 hover:text-gold-300 transition-colors"
+                              className="text-gold-400 hover:text-gold-300 transition-colors text-sm"
                             >
                               {lot.vendorEmail}
                             </a>
