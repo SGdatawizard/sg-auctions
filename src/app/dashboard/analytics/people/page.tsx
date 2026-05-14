@@ -25,7 +25,6 @@ export default function PeoplePage() {
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
 
-  // Get available years from auctions
   const years = [...new Set(auctions.map((a) => new Date(a.date).getFullYear()))]
     .sort((a, b) => b - a);
 
@@ -45,7 +44,6 @@ export default function PeoplePage() {
       if (auctions.length === 0) return;
       setLoading(true);
 
-      // Filter auctions by category and year
       let filteredAuctions = auctions;
       if (categoryFilter !== "all") {
         filteredAuctions = filteredAuctions.filter(
@@ -67,7 +65,6 @@ export default function PeoplePage() {
 
       const auctionIds = filteredAuctions.map((a) => a.id);
 
-      // Get all lots for these auctions
       const { data: lots } = await supabase
         .from("lots")
         .select("id, sold, hammer_price, auction_id")
@@ -82,7 +79,7 @@ export default function PeoplePage() {
       const soldLots = lots.filter((l) => l.sold);
       const soldLotIds = soldLots.map((l) => l.id);
 
-      // ── Top Buyers ──────────────────────────────────────────────
+      // Top Buyers
       if (soldLotIds.length > 0) {
         const { data: lotBuyers } = await supabase
           .from("lot_buyers")
@@ -131,7 +128,7 @@ export default function PeoplePage() {
         setTopBuyers([]);
       }
 
-      // ── Top Vendors ──────────────────────────────────────────────
+      // Top Vendors
       if (lotIds.length > 0) {
         const { data: lotVendors } = await supabase
           .from("lot_vendors")
