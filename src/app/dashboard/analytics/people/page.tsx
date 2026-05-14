@@ -41,7 +41,10 @@ export default function PeoplePage() {
 
   useEffect(() => {
     async function loadData() {
-      if (auctions.length === 0) return;
+      if (auctions.length === 0) {
+        setLoading(false);
+        return;
+      }
       setLoading(true);
 
       let filteredAuctions = auctions;
@@ -88,7 +91,6 @@ export default function PeoplePage() {
 
         if (lotBuyers && lotBuyers.length > 0) {
           const buyerIds = [...new Set(lotBuyers.map((lb) => lb.buyer_id))];
-
           const { data: buyerDetails } = await supabase
             .from("buyers")
             .select("id, name, email, country")
@@ -106,7 +108,6 @@ export default function PeoplePage() {
                 });
               }
             }
-
             const buyers: PersonRow[] = buyerDetails
               .map((b) => ({
                 id: b.id,
@@ -118,7 +119,6 @@ export default function PeoplePage() {
               }))
               .sort((a, b) => b.totalValue - a.totalValue)
               .slice(0, 10);
-
             setTopBuyers(buyers);
           }
         } else {
@@ -137,7 +137,6 @@ export default function PeoplePage() {
 
         if (lotVendors && lotVendors.length > 0) {
           const vendorIds = [...new Set(lotVendors.map((lv) => lv.vendor_id))];
-
           const { data: vendorDetails } = await supabase
             .from("vendors")
             .select("id, name, email, country")
@@ -155,7 +154,6 @@ export default function PeoplePage() {
                 });
               }
             }
-
             const vendors: PersonRow[] = vendorDetails
               .map((v) => ({
                 id: v.id,
@@ -167,7 +165,6 @@ export default function PeoplePage() {
               }))
               .sort((a, b) => b.totalValue - a.totalValue)
               .slice(0, 10);
-
             setTopVendors(vendors);
           }
         } else {
@@ -187,7 +184,6 @@ export default function PeoplePage() {
 
   return (
     <div className="space-y-8">
-
       <div>
         <h1 className="page-title">Buyers & Vendors</h1>
         <p className="text-[#6687bc] text-sm mt-1">
@@ -195,7 +191,6 @@ export default function PeoplePage() {
         </p>
       </div>
 
-      {/* Filters */}
       <div className="card py-4 space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
@@ -227,7 +222,6 @@ export default function PeoplePage() {
         </div>
       </div>
 
-      {/* Tab switcher */}
       <div className="flex items-center gap-1 bg-[#0e1e38] rounded-lg p-1 w-fit">
         <button
           onClick={() => setActiveTab("buyers")}
@@ -253,7 +247,6 @@ export default function PeoplePage() {
         </button>
       </div>
 
-      {/* Table */}
       <div className="card p-0 overflow-hidden">
         <div className="px-6 py-4 border-b border-[#1e3a6b]">
           <h2 className="section-title">
@@ -340,7 +333,6 @@ export default function PeoplePage() {
           </div>
         )}
       </div>
-
     </div>
   );
 }
