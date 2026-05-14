@@ -18,13 +18,16 @@ import {
   Gavel,
   BarChart3,
 } from "lucide-react";
-import type { Auction, Lot } from "@/lib/types/database";
+import type { Auction, Lot, TopBuyer, TopVendor } from "@/lib/types/database";
 
 export default function AuctionDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [auction, setAuction] = useState<Auction | null>(null);
   const [lots, setLots] = useState<Lot[]>([]);
+  const [topBuyers, setTopBuyers] = useState<TopBuyer[]>([]);
+  const [topVendors, setTopVendors] = useState<TopVendor[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<"lots" | "buyers" | "vendors">("lots");
   const supabase = createClient();
 
   useEffect(() => {
@@ -47,7 +50,104 @@ export default function AuctionDetailPage() {
         .order("lot_number", { ascending: true });
 
       setAuction(auctionData);
-      setLots(lotsData ?? []);
+      const allLots = lotsData ?? [];
+      setLots(allLots);
+
+      // Get lot ids for this auction
+      const lotIds = allLots.map((l) => l.id);
+
+      if (lotIds.length > 0) {
+        // Top buyers — get lot_buyers for these lots
+        const { data: lotBuyers } = await supabase
+          .from("lot_buyers")
+          .select("lot_id, buyer_id")
+          .in("lot_id", lotIds);
+
+        if (lotBuyers && lotBuyers.length > 0) {
+          const buyerIds = [...new Set(lotBuyers.map((lb) => lb.buyer_id))];
+
+          const { data: buyerDetails } = await supabase
+            .from("buyers")
+            .select("id, name, email, country")
+            .in("id", buyerIds);
+
+          if (buyerDetails) {
+            // Calculate spend per buyer
+            const soldLots = allLots.filter((l) => l.sold);
+            const buyerSpend = new Map<string, { lots: number; spend: number }>();
+
+            for (const lb of lotBuyers) {
+              const lot = soldLots.find((l) => l.id === lb.lot_id);
+              if (lot) {
+                const existing = buyerSpend.get(lb.buyer_id) ?? { lots: 0, spend: 0 };
+                buyerSpend.set(lb.buyer_id, {
+                  lots: existing.lots + 1,
+                  spend: existing.spend + (lot.hammer_price ?? 0),
+                });
+              }
+            }
+
+            const buyers: TopBuyer[] = buyerDetails
+              .map((b) => ({
+                id: b.id,
+                name: b.name,
+                email: b.email,
+                country: b.country,
+                totalLots: buyerSpend.get(b.id)?.lots ?? 0,
+                totalSpend: buyerSpend.get(b.id)?.spend ?? 0,
+              }))
+              .sort((a, b) => b.totalSpend - a.totalSpend)
+              .slice(0, 10);
+
+            setTopBuyers(buyers);
+          }
+        }
+
+        // Top vendors — get lot_vendors for these lots
+        const { data: lotVendors } = await supabase
+          .from("lot_vendors")
+          .select("lot_id, vendor_id")
+          .in("lot_id", lotIds);
+
+        if (lotVendors && lotVendors.length > 0) {
+          const vendorIds = [...new Set(lotVendors.map((lv) => lv.vendor_id))];
+
+          const { data: vendorDetails } = await supabase
+            .from("vendors")
+            .select("id, name, email, country")
+            .in("id", vendorIds);
+
+          if (vendorDetails) {
+            const vendorStats = new Map<string, { lots: number; value: number }>();
+
+            for (const lv of lotVendors) {
+              const lot = allLots.find((l) => l.id === lv.lot_id);
+              if (lot) {
+                const existing = vendorStats.get(lv.vendor_id) ?? { lots: 0, value: 0 };
+                vendorStats.set(lv.vendor_id, {
+                  lots: existing.lots + 1,
+                  value: existing.value + (lot.sold ? (lot.hammer_price ?? 0) : 0),
+                });
+              }
+            }
+
+            const vendors: TopVendor[] = vendorDetails
+              .map((v) => ({
+                id: v.id,
+                name: v.name,
+                email: v.email,
+                country: v.country,
+                totalLots: vendorStats.get(v.id)?.lots ?? 0,
+                totalHammerValue: vendorStats.get(v.id)?.value ?? 0,
+              }))
+              .sort((a, b) => b.totalHammerValue - a.totalHammerValue)
+              .slice(0, 10);
+
+            setTopVendors(vendors);
+          }
+        }
+      }
+
       setLoading(false);
     }
     loadData();
@@ -56,7 +156,7 @@ export default function AuctionDetailPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-zinc-500 text-sm">Loading...</p>
+        <p className="text-[#6687bc] text-sm">Loading...</p>
       </div>
     );
   }
@@ -64,7 +164,7 @@ export default function AuctionDetailPage() {
   if (!auction) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-zinc-500 text-sm">Auction not found</p>
+        <p className="text-[#6687bc] text-sm">Auction not found</p>
       </div>
     );
   }
@@ -121,9 +221,9 @@ export default function AuctionDetailPage() {
       label: "Lots offered",
       value: auction.total_lots.toLocaleString(),
       icon: Gavel,
-      color: "text-brand-400",
-      bg: "bg-brand-500/10",
-      border: "border-brand-500/20",
+      color: "text-gold-400",
+      bg: "bg-gold-500/10",
+      border: "border-gold-500/20",
     },
     {
       label: "Average lot value",
@@ -142,190 +242,4 @@ export default function AuctionDetailPage() {
       <div>
         <Link
           href="/dashboard/auctions"
-          className="inline-flex items-center gap-1.5 text-zinc-500 hover:text-zinc-300 text-sm mb-4 transition-colors"
-        >
-          <ArrowLeft size={14} />
-          Back to auctions
-        </Link>
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="page-title">{auction.name}</h1>
-              {auction.sale_number && (
-                <span className="badge badge-amber">{auction.sale_number}</span>
-              )}
-            </div>
-            <p className="text-zinc-500 text-sm mt-1">
-              {formatDate(auction.date)}
-              {auction.location ? ` · ${auction.location}` : ""}
-            </p>
-          </div>
-          <span className={getSellThroughBadge(sellThrough)}>
-            {formatPercent(sellThrough)} sell-through
-          </span>
-        </div>
-      </div>
-
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        {stats.map((stat) => (
-          <div key={stat.label} className="card flex items-start gap-4">
-            <div
-              className={`w-10 h-10 rounded-lg ${stat.bg} border ${stat.border} flex items-center justify-center flex-shrink-0`}
-            >
-              <stat.icon size={18} className={stat.color} />
-            </div>
-            <div>
-              <p className="stat-value text-2xl">{stat.value}</p>
-              <p className="stat-label">{stat.label}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-
-        {/* Top lots */}
-        <div className="card">
-          <h2 className="section-title mb-4">Top lots by hammer price</h2>
-          {topLots.length === 0 ? (
-            <p className="text-zinc-600 text-sm">No sold lots recorded</p>
-          ) : (
-            <div className="space-y-3">
-              {topLots.map((lot, i) => (
-                <div
-                  key={lot.id}
-                  className="flex items-start gap-3 py-2 border-b border-zinc-800/50 last:border-0"
-                >
-                  <span className="text-xs font-medium text-zinc-600 w-5 flex-shrink-0 mt-0.5">
-                    {i + 1}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-zinc-100 truncate">
-                      {lot.title}
-                    </p>
-                    <p className="text-xs text-zinc-500 mt-0.5">
-                      {lot.department ?? lot.category ?? "—"}
-                      {lot.category && lot.department ? ` · ${lot.category}` : ""}
-                    </p>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="text-sm font-medium text-zinc-100">
-                      {formatCurrency(lot.hammer_price ?? 0)}
-                    </p>
-                    <p className="text-xs text-zinc-500">
-                      {formatMultiplier(
-                        lot.hammer_price ?? 0,
-                        lot.estimate_low ?? 0,
-                        lot.estimate_high ?? 0
-                      )}{" "}
-                      est
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Categories */}
-        <div className="card">
-          <h2 className="section-title mb-4">Results by category</h2>
-          {categories.length === 0 ? (
-            <p className="text-zinc-600 text-sm">No category data</p>
-          ) : (
-            <div className="space-y-3">
-              {categories.map((cat) => (
-                <div key={cat.name} className="space-y-1.5">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-zinc-300 font-medium">{cat.name}</span>
-                    <span className="text-zinc-100 font-medium">
-                      {formatCurrency(cat.value)}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 bg-zinc-800 rounded-full h-1.5">
-                      <div
-                        className="bg-brand-500 h-1.5 rounded-full transition-all"
-                        style={{
-                          width: `${cat.total > 0 ? (cat.sold / cat.total) * 100 : 0}%`,
-                        }}
-                      />
-                    </div>
-                    <span className="text-xs text-zinc-500 w-16 text-right">
-                      {cat.sold}/{cat.total} sold
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-      </div>
-
-      {/* Full lots table */}
-      <div className="card p-0 overflow-hidden">
-        <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
-          <h2 className="section-title">All lots</h2>
-          <div className="flex items-center gap-3">
-            <span className="badge-green">{soldLots.length} sold</span>
-            <span className="badge-red">{unsoldLots.length} unsold</span>
-          </div>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-zinc-800">
-                <th className="table-header text-left py-3 px-6">Lot</th>
-                <th className="table-header text-left py-3 px-6">Title</th>
-                <th className="table-header text-left py-3 px-6">Department</th>
-                <th className="table-header text-left py-3 px-6">Category</th>
-                <th className="table-header text-right py-3 px-6">Estimate</th>
-                <th className="table-header text-right py-3 px-6">Hammer</th>
-                <th className="table-header text-center py-3 px-6">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {lots.map((lot) => (
-                <tr
-                  key={lot.id}
-                  className="border-b border-zinc-800/50 hover:bg-zinc-800/20 transition-colors"
-                >
-                  <td className="table-cell px-6 text-zinc-500 font-mono text-xs">
-                    {lot.lot_number}
-                  </td>
-                  <td className="table-cell px-6 font-medium text-zinc-100 max-w-xs truncate">
-                    {lot.title}
-                  </td>
-                  <td className="table-cell px-6 text-zinc-400">
-                    {lot.department ?? "—"}
-                  </td>
-                  <td className="table-cell px-6 text-zinc-400">
-                    {lot.category ?? "—"}
-                  </td>
-                  <td className="table-cell text-right px-6 text-zinc-400">
-                    {lot.estimate_low && lot.estimate_high
-                      ? `${formatCurrency(lot.estimate_low)} – ${formatCurrency(lot.estimate_high)}`
-                      : lot.estimate_low
-                      ? formatCurrency(lot.estimate_low)
-                      : "—"}
-                  </td>
-                  <td className="table-cell text-right px-6 font-medium text-zinc-100">
-                    {lot.hammer_price ? formatCurrency(lot.hammer_price) : "—"}
-                  </td>
-                  <td className="table-cell text-center px-6">
-                    <span className={lot.sold ? "badge-green" : "badge-red"}>
-                      {lot.sold ? "Sold" : "Unsold"}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-    </div>
-  );
-}
+          className="inline-flex items-center gap-1.5 text-[#6
