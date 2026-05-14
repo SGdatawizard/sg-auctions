@@ -119,6 +119,7 @@ export async function POST(request: NextRequest) {
     const saleNumber = extractSaleNumber(file.name);
     const auctionDate = (formData.get("auction_date") as string | null) ?? parseDate(rows);
     const auctionLocation = str(firstRow["Item Location"]) ?? null;
+    const auctionCategory = (formData.get("auction_category") as string | null) ?? null;
 
     // Create auction record
     const { data: auction, error: auctionError } = await supabase
@@ -128,6 +129,7 @@ export async function POST(request: NextRequest) {
         name: auctionName,
         date: auctionDate,
         location: auctionLocation,
+        auction_category: auctionCategory,
         total_lots: 0,
         lots_sold: 0,
         total_hammer_value: 0,
@@ -153,6 +155,7 @@ export async function POST(request: NextRequest) {
         lot_number: str(row["Lot No"]),
         stock_number: str(row["Stock No"]),
         title: str(row["Title"]) ?? "Untitled",
+        description: str(row["Description"]),
         department: str(row["Department"]),
         category: str(row["Category"]),
         item_location: str(row["Item Location"]),
@@ -402,6 +405,7 @@ export async function POST(request: NextRequest) {
       auctionId: auction.id,
       auctionName,
       saleNumber,
+      auctionCategory,
       lotsImported: insertedLots.length,
       lotsSold: soldLots.length,
       totalHammerValue,
