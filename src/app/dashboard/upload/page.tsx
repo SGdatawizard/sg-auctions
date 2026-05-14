@@ -9,8 +9,10 @@ import {
   AlertCircle,
   X,
   Calendar,
+  Tag,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils/formatters";
+import { AUCTION_CATEGORIES } from "@/lib/types/database";
 
 type UploadState = "idle" | "uploading" | "success" | "error";
 
@@ -18,6 +20,7 @@ type UploadResult = {
   auctionId: string;
   auctionName: string;
   saleNumber: string | null;
+  auctionCategory: string | null;
   lotsImported: number;
   lotsSold: number;
   totalHammerValue: number;
@@ -25,17 +28,15 @@ type UploadResult = {
 
 function getAccessToken(): string | null {
   try {
-    // Supabase stores auth under this key in localStorage
     const storageKey = "sg-auctions-auth";
     const raw = localStorage.getItem(storageKey);
     if (raw) {
       const parsed = JSON.parse(raw);
       return parsed?.access_token ?? null;
     }
-    // Fallback — search all localStorage keys for a Supabase token
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key && key.includes("supabase") || key && key.includes("auth")) {
+      if (key && (key.includes("supabase") || key.includes("auth"))) {
         const val = localStorage.getItem(key);
         if (val) {
           const parsed = JSON.parse(val);
@@ -53,6 +54,7 @@ export default function UploadPage() {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [auctionDate, setAuctionDate] = useState("");
+  const [auctionCategory, setAuctionCategory] = useState("");
   const [state, setState] = useState<UploadState>("idle");
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<UploadResult | null>(null);
@@ -85,13 +87,12 @@ export default function UploadPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!file || !auctionDate) return;
+    if (!file || !auctionDate || !auctionCategory) return;
 
     setState("uploading");
     setError(null);
 
     const accessToken = getAccessToken();
-
     if (!accessToken) {
       setError("Not authenticated — please log in again");
       setState("error");
@@ -101,6 +102,7 @@ export default function UploadPage() {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("auction_date", auctionDate);
+    formData.append("auction_category", auctionCategory);
 
     try {
       const res = await fetch("/api/upload", {
@@ -130,6 +132,7 @@ export default function UploadPage() {
   function handleReset() {
     setFile(null);
     setAuctionDate("");
+    setAuctionCategory("");
     setState("idle");
     setError(null);
     setResult(null);
@@ -148,11 +151,14 @@ export default function UploadPage() {
         <div className="card text-center py-10">
           <CheckCircle2 size={48} className="text-emerald-400 mx-auto mb-4" />
           <h2 className="section-title mb-1">Upload successful</h2>
-          {result.saleNumber && (
-            <p className="text-brand-400 text-sm font-medium mb-1">
-              {result.saleNumber}
-            </p>
-          )}
+          <div className="flex items-center justify-center gap-2 mb-1">
+            {result.saleNumber && (
+              <span className="badge badge-amber">{result.saleNumber}</span>
+            )}
+            {result.auctionCategory && (
+              <span className="badge badge-green">{result.auctionCategory}</span>
+            )}
+          </div>
           <p className="text-zinc-500 text-sm mb-6">{result.auctionName}</p>
 
           <div className="grid grid-cols-3 gap-4 mb-8">
@@ -264,25 +270,55 @@ export default function UploadPage() {
           )}
         </div>
 
-        {/* Auction date */}
+        {/* Auction details */}
         <div className="card space-y-4">
-          <h2 className="section-title">Auction date</h2>
-          <p className="text-zinc-500 text-xs -mt-2">
-            The date the auction was held — used for year-on-year comparisons
-          </p>
-          <div className="relative">
-            <Calendar
-              size={16}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none"
-            />
-            <input
-              type="date"
-              value={auctionDate}
-              onChange={(e) => setAuctionDate(e.target.value)}
-              className="input pl-9"
-              required
-            />
+          <h2 className="section-title">Auction details</h2>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="label">Auction date *</label>
+              <div className="relative">
+                <Calendar
+                  size={16}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none"
+                />
+                <input
+                  type="date"
+                  value={auctionDate}
+                  onChange={(e) => setAuctionDate(e.target.value)}
+                  className="input pl-9"
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="label">Auction category *</label>
+              <div className="relative">
+                <Tag
+                  size={16}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none"
+                />
+                <select
+                  value={auctionCategory}
+                  onChange={(e) => setAuctionCategory(e.target.value)}
+                  className="input pl-9 appearance-none"
+                  required
+                >
+                  <option value="">Select category...</option>
+                  {AUCTION_CATEGORIES.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </div>
+
+          <p className="text-zinc-600 text-xs">
+            The date and category are used for year-on-year comparisons and filtering
+          </p>
         </div>
 
         {error && (
@@ -297,7 +333,7 @@ export default function UploadPage() {
 
         <button
           type="submit"
-          disabled={!file || !auctionDate || state === "uploading"}
+          disabled={!file || !auctionDate || !auctionCategory || state === "uploading"}
           className="btn-primary w-full flex items-center justify-center gap-2"
         >
           {state === "uploading" ? (
