@@ -37,10 +37,7 @@ export default function UnsoldLotsPage() {
 
   useEffect(() => {
     async function loadAuctions() {
-      const { data } = await supabase
-        .from("auctions")
-        .select("*")
-        .order("date", { ascending: false });
+      const { data } = await supabase.from("auctions").select("*").order("date", { ascending: false });
       setAuctions(data ?? []);
     }
     loadAuctions();
@@ -56,14 +53,10 @@ export default function UnsoldLotsPage() {
 
       let filteredAuctions = auctions;
       if (categoryFilter !== "all") {
-        filteredAuctions = filteredAuctions.filter(
-          (a) => a.auction_category === categoryFilter
-        );
+        filteredAuctions = filteredAuctions.filter((a) => a.auction_category === categoryFilter);
       }
       if (auctionFilter !== "all") {
-        filteredAuctions = filteredAuctions.filter(
-          (a) => a.id === auctionFilter
-        );
+        filteredAuctions = filteredAuctions.filter((a) => a.id === auctionFilter);
       }
 
       if (filteredAuctions.length === 0) {
@@ -88,19 +81,13 @@ export default function UnsoldLotsPage() {
 
       const lotIds = unsoldLots.map((l) => l.id);
 
-      const { data: lotVendors } = await supabase
-        .from("lot_vendors")
-        .select("lot_id, vendor_id")
-        .in("lot_id", lotIds);
+      const { data: lotVendors } = await supabase.from("lot_vendors").select("lot_id, vendor_id").in("lot_id", lotIds);
 
       const vendorIds = [...new Set((lotVendors ?? []).map((lv) => lv.vendor_id))];
       const vendorMap = new Map<string, { name: string | null; email: string | null }>();
 
       if (vendorIds.length > 0) {
-        const { data: vendors } = await supabase
-          .from("vendors")
-          .select("id, name, email")
-          .in("id", vendorIds);
+        const { data: vendors } = await supabase.from("vendors").select("id, name, email").in("id", vendorIds);
         if (vendors) {
           for (const v of vendors) {
             vendorMap.set(v.id, { name: v.name, email: v.email });
@@ -114,19 +101,13 @@ export default function UnsoldLotsPage() {
         if (vendor) lotToVendor.set(lv.lot_id, vendor);
       }
 
-      const { data: lotDescribers } = await supabase
-        .from("lot_describers")
-        .select("lot_id, describer_id")
-        .in("lot_id", lotIds);
+      const { data: lotDescribers } = await supabase.from("lot_describers").select("lot_id, describer_id").in("lot_id", lotIds);
 
       const describerIds = [...new Set((lotDescribers ?? []).map((ld) => ld.describer_id))];
       const describerMap = new Map<string, string>();
 
       if (describerIds.length > 0) {
-        const { data: describers } = await supabase
-          .from("describers")
-          .select("id, name")
-          .in("id", describerIds);
+        const { data: describers } = await supabase.from("describers").select("id, name").in("id", describerIds);
         if (describers) {
           for (const d of describers) {
             describerMap.set(d.id, d.name);
@@ -139,10 +120,8 @@ export default function UnsoldLotsPage() {
       for (const ld of lotDescribers ?? []) {
         const lot = unsoldLots.find((l) => l.id === ld.lot_id);
         if (!lot) continue;
-
         const describerName = describerMap.get(ld.describer_id) ?? "Unknown";
         const vendor = lotToVendor.get(lot.id);
-
         const unsoldRow: UnsoldLotRow = {
           lotId: lot.id,
           lotNumber: lot.lot_number,
@@ -156,16 +135,11 @@ export default function UnsoldLotsPage() {
           vendorName: vendor?.name ?? null,
           vendorEmail: vendor?.email ?? null,
         };
-
         const existing = describerToLots.get(ld.describer_id);
         if (existing) {
           existing.lots.push(unsoldRow);
         } else {
-          describerToLots.set(ld.describer_id, {
-            id: ld.describer_id,
-            name: describerName,
-            lots: [unsoldRow],
-          });
+          describerToLots.set(ld.describer_id, { id: ld.describer_id, name: describerName, lots: [unsoldRow] });
         }
       }
 
@@ -185,74 +159,42 @@ export default function UnsoldLotsPage() {
     loadData();
   }, [auctionFilter, categoryFilter, auctions]);
 
-  const filteredData = selectedDescriber === "all"
-    ? describerData
-    : describerData.filter((d) => d.describerId === selectedDescriber);
-
+  const filteredData = selectedDescriber === "all" ? describerData : describerData.filter((d) => d.describerId === selectedDescriber);
   const totalUnsold = describerData.reduce((sum, d) => sum + d.lots.length, 0);
 
   return (
     <div className="space-y-8">
       <div>
         <h1 className="page-title">Unsold lots by describer</h1>
-        <p className="text-[#6687bc] text-sm mt-1">
-          Full details of unsold lots grouped by describer
-        </p>
+        <p className="text-[#6687bc] text-sm mt-1">Full details of unsold lots grouped by describer</p>
       </div>
-
       <div className="card space-y-4 py-4">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
             <label className="label">Auction category</label>
-            <select
-              value={categoryFilter}
-              onChange={(e) => {
-                setCategoryFilter(e.target.value);
-                setAuctionFilter("all");
-              }}
-              className="input"
-            >
+            <select value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); setAuctionFilter("all"); }} className="input">
               <option value="all">All categories</option>
-              {AUCTION_CATEGORIES.map((cat) => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
+              {AUCTION_CATEGORIES.map((cat) => (<option key={cat} value={cat}>{cat}</option>))}
             </select>
           </div>
           <div>
             <label className="label">Auction</label>
-            <select
-              value={auctionFilter}
-              onChange={(e) => setAuctionFilter(e.target.value)}
-              className="input"
-            >
+            <select value={auctionFilter} onChange={(e) => setAuctionFilter(e.target.value)} className="input">
               <option value="all">All auctions</option>
               {auctions
                 .filter((a) => categoryFilter === "all" || a.auction_category === categoryFilter)
-                .map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.sale_number ? `${a.sale_number} — ` : ""}{a.name}
-                  </option>
-                ))}
+                .map((a) => (<option key={a.id} value={a.id}>{a.sale_number ? `${a.sale_number} — ` : ""}{a.name}</option>))}
             </select>
           </div>
           <div>
             <label className="label">Describer</label>
-            <select
-              value={selectedDescriber}
-              onChange={(e) => setSelectedDescriber(e.target.value)}
-              className="input"
-            >
+            <select value={selectedDescriber} onChange={(e) => setSelectedDescriber(e.target.value)} className="input">
               <option value="all">All describers</option>
-              {describerData.map((d) => (
-                <option key={d.describerId} value={d.describerId}>
-                  {d.describerName} ({d.lots.length} unsold)
-                </option>
-              ))}
+              {describerData.map((d) => (<option key={d.describerId} value={d.describerId}>{d.describerName} ({d.lots.length} unsold)</option>))}
             </select>
           </div>
         </div>
       </div>
-
       {loading ? (
         <div className="flex items-center justify-center h-48">
           <p className="text-[#6687bc] text-sm">Loading...</p>
@@ -279,15 +221,12 @@ export default function UnsoldLotsPage() {
               </div>
             </div>
           </div>
-
           {filteredData.map((d) => (
             <div key={d.describerId} className="card p-0 overflow-hidden">
               <div className="px-6 py-4 border-b border-[#1e3a6b] flex items-center justify-between">
                 <div>
                   <h2 className="section-title">{d.describerName}</h2>
-                  <p className="text-xs text-[#6687bc] mt-0.5">
-                    {d.lots.length} unsold lot{d.lots.length !== 1 ? "s" : ""}
-                  </p>
+                  <p className="text-xs text-[#6687bc] mt-0.5">{d.lots.length} unsold lot{d.lots.length !== 1 ? "s" : ""}</p>
                 </div>
                 <span className="badge-red">{d.lots.length} unsold</span>
               </div>
@@ -308,51 +247,23 @@ export default function UnsoldLotsPage() {
                   </thead>
                   <tbody>
                     {d.lots.map((lot) => (
-                      <tr
-                        key={lot.lotId}
-                        className="border-b border-[#1e3a6b]/50 hover:bg-[#1e3a6b]/30 transition-colors"
-                      >
-                        <td className="table-cell px-4 font-mono text-xs text-[#6687bc]">
-                          {lot.lotNumber ?? "—"}
-                        </td>
-                        <td className="table-cell px-4 font-mono text-xs text-[#6687bc]">
-                          {lot.stockNumber ?? "—"}
-                        </td>
-                        <td className="table-cell px-4 font-mono text-xs text-[#6687bc]">
-                          {lot.receiptNo ?? "—"}
-                        </td>
+                      <tr key={lot.lotId} className="border-b border-[#1e3a6b]/50 hover:bg-[#1e3a6b]/30 transition-colors">
+                        <td className="table-cell px-4 font-mono text-xs text-[#6687bc]">{lot.lotNumber ?? "—"}</td>
+                        <td className="table-cell px-4 font-mono text-xs text-[#6687bc]">{lot.stockNumber ?? "—"}</td>
+                        <td className="table-cell px-4 font-mono text-xs text-[#6687bc]">{lot.receiptNo ?? "—"}</td>
                         <td className="table-cell px-4 font-medium text-[#f7f4ec] max-w-[200px]">
-                          <div className="truncate" title={lot.title}>
-                            {lot.title}
-                          </div>
+                          <div className="truncate" title={lot.title}>{lot.title}</div>
                         </td>
                         <td className="table-cell px-4 text-[#94aed6] max-w-[300px]">
-                          <div className="truncate" title={lot.description ?? ""}>
-                            {lot.description ?? "—"}
-                          </div>
+                          <div className="truncate" title={lot.description ?? ""}>{lot.description ?? "—"}</div>
                         </td>
                         <td className="table-cell text-right px-4 text-[#94aed6] whitespace-nowrap">
-                          {lot.estimateLow && lot.estimateHigh
-                            ? `${formatCurrency(lot.estimateLow)} – ${formatCurrency(lot.estimateHigh)}`
-                            : lot.estimateLow
-                            ? formatCurrency(lot.estimateLow)
-                            : "—"}
+                          {lot.estimateLow && lot.estimateHigh ? `${formatCurrency(lot.estimateLow)} – ${formatCurrency(lot.estimateHigh)}` : lot.estimateLow ? formatCurrency(lot.estimateLow) : "—"}
                         </td>
-                        <td className="table-cell text-right px-4 text-[#94aed6]">
-                          {lot.reserve ? formatCurrency(lot.reserve) : "—"}
-                        </td>
-                        <td className="table-cell px-4 text-[#94aed6]">
-                          {lot.vendorName ?? "—"}
-                        </td>
+                        <td className="table-cell text-right px-4 text-[#94aed6]">{lot.reserve ? formatCurrency(lot.reserve) : "—"}</td>
+                        <td className="table-cell px-4 text-[#94aed6]">{lot.vendorName ?? "—"}</td>
                         <td className="table-cell px-4">
-                          {lot.vendorEmail ? (
-                            
-                              href={`mailto:${lot.vendorEmail}`}
-                              className="text-gold-400 hover:text-gold-300 transition-colors text-sm"
-                            >
-                              {lot.vendorEmail}
-                            </a>
-                          ) : "—"}
+                          {lot.vendorEmail ? (<a href={`mailto:${lot.vendorEmail}`} className="text-gold-400 hover:text-gold-300 transition-colors text-sm">{lot.vendorEmail}</a>) : "—"}
                         </td>
                       </tr>
                     ))}
