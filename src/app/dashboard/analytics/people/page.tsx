@@ -58,7 +58,10 @@ export default function PeoplePage() {
       }
 
       const auctionIds = filteredAuctions.map((a) => a.id);
-      const { data: lots } = await supabase.from("lots").select("id, sold, hammer_price, auction_id").in("auction_id", auctionIds);
+      const { data: lots } = await supabase
+        .from("lots")
+        .select("id, sold, hammer_price, auction_id")
+        .in("auction_id", auctionIds);
 
       if (!lots) {
         setLoading(false);
@@ -69,22 +72,45 @@ export default function PeoplePage() {
       const soldLots = lots.filter((l) => l.sold);
       const soldLotIds = soldLots.map((l) => l.id);
 
+      // ── Top Buyers ── chunk lot IDs to avoid Supabase 1000 row limit
       if (soldLotIds.length > 0) {
-        const { data: lotBuyers } = await supabase.from("lot_buyers").select("lot_id, buyer_id").in("lot_id", soldLotIds);
-        if (lotBuyers && lotBuyers.length > 0) {
-          const buyerIds = Array.from(new Set(lotBuyers.map((lb) => lb.buyer_id)));
-          const { data: buyerDetails } = await supabase.from("buyers").select("id, name, country").in("id", buyerIds);
+        const lotBuyersAll: { lot_id: string; buyer_id: string }[] = [];
+        for (let i = 0; i < soldLotIds.length; i += 500) {
+          const chunk = soldLotIds.slice(i, i + 500);
+          const { data } = await supabase
+            .from("lot_buyers")
+            .select("lot_id, buyer_id")
+            .in("lot_id", chunk);
+          if (data) lotBuyersAll.push(...data);
+        }
+
+        if (lotBuyersAll.length > 0) {
+          const buyerIds = Array.from(new Set(lotBuyersAll.map((lb) => lb.buyer_id)));
+          const { data: buyerDetails } = await supabase
+            .from("buyers")
+            .select("id, name, country")
+            .in("id", buyerIds);
+
           if (buyerDetails) {
             const buyerStats = new Map<string, { lots: number; spend: number }>();
-            for (const lb of lotBuyers) {
+            for (const lb of lotBuyersAll) {
               const lot = soldLots.find((l) => l.id === lb.lot_id);
               if (lot) {
                 const existing = buyerStats.get(lb.buyer_id) ?? { lots: 0, spend: 0 };
-                buyerStats.set(lb.buyer_id, { lots: existing.lots + 1, spend: existing.spend + (lot.hammer_price ?? 0) });
+                buyerStats.set(lb.buyer_id, {
+                  lots: existing.lots + 1,
+                  spend: existing.spend + (lot.hammer_price ?? 0),
+                });
               }
             }
             const buyers: PersonRow[] = buyerDetails
-              .map((b) => ({ id: b.id, name: b.name, country: b.country, totalLots: buyerStats.get(b.id)?.lots ?? 0, totalValue: buyerStats.get(b.id)?.spend ?? 0 }))
+              .map((b) => ({
+                id: b.id,
+                name: b.name,
+                country: b.country,
+                totalLots: buyerStats.get(b.id)?.lots ?? 0,
+                totalValue: buyerStats.get(b.id)?.spend ?? 0,
+              }))
               .sort((a, b) => b.totalValue - a.totalValue)
               .slice(0, 10);
             setTopBuyers(buyers);
@@ -96,22 +122,45 @@ export default function PeoplePage() {
         setTopBuyers([]);
       }
 
+      // ── Top Vendors ── chunk lot IDs to avoid Supabase 1000 row limit
       if (lotIds.length > 0) {
-        const { data: lotVendors } = await supabase.from("lot_vendors").select("lot_id, vendor_id").in("lot_id", lotIds);
-        if (lotVendors && lotVendors.length > 0) {
-          const vendorIds = Array.from(new Set(lotVendors.map((lv) => lv.vendor_id)));
-          const { data: vendorDetails } = await supabase.from("vendors").select("id, name, country").in("id", vendorIds);
+        const lotVendorsAll: { lot_id: string; vendor_id: string }[] = [];
+        for (let i = 0; i < lotIds.length; i += 500) {
+          const chunk = lotIds.slice(i, i + 500);
+          const { data } = await supabase
+            .from("lot_vendors")
+            .select("lot_id, vendor_id")
+            .in("lot_id", chunk);
+          if (data) lotVendorsAll.push(...data);
+        }
+
+        if (lotVendorsAll.length > 0) {
+          const vendorIds = Array.from(new Set(lotVendorsAll.map((lv) => lv.vendor_id)));
+          const { data: vendorDetails } = await supabase
+            .from("vendors")
+            .select("id, name, country")
+            .in("id", vendorIds);
+
           if (vendorDetails) {
             const vendorStats = new Map<string, { lots: number; value: number }>();
-            for (const lv of lotVendors) {
+            for (const lv of lotVendorsAll) {
               const lot = lots.find((l) => l.id === lv.lot_id);
               if (lot) {
                 const existing = vendorStats.get(lv.vendor_id) ?? { lots: 0, value: 0 };
-                vendorStats.set(lv.vendor_id, { lots: existing.lots + 1, value: existing.value + (lot.sold ? (lot.hammer_price ?? 0) : 0) });
+                vendorStats.set(lv.vendor_id, {
+                  lots: existing.lots + 1,
+                  value: existing.value + (lot.sold ? (lot.hammer_price ?? 0) : 0),
+                });
               }
             }
             const vendors: PersonRow[] = vendorDetails
-              .map((v) => ({ id: v.id, name: v.name, country: v.country, totalLots: vendorStats.get(v.id)?.lots ?? 0, totalValue: vendorStats.get(v.id)?.value ?? 0 }))
+              .map((v) => ({
+                id: v.id,
+                name: v.name,
+                country: v.country,
+                totalLots: vendorStats.get(v.id)?.lots ?? 0,
+                totalValue: vendorStats.get(v.id)?.value ?? 0,
+              }))
               .sort((a, b) => b.totalValue - a.totalValue)
               .slice(0, 10);
             setTopVendors(vendors);
@@ -156,11 +205,17 @@ export default function PeoplePage() {
         </div>
       </div>
       <div className="flex items-center gap-1 bg-[#0e1e38] rounded-lg p-1 w-fit">
-        <button onClick={() => setActiveTab("buyers")} className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === "buyers" ? "bg-gold-500 text-[#0e1e38]" : "text-[#94aed6] hover:text-[#f7f4ec]"}`}>
+        <button
+          onClick={() => setActiveTab("buyers")}
+          className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === "buyers" ? "bg-gold-500 text-[#0e1e38]" : "text-[#94aed6] hover:text-[#f7f4ec]"}`}
+        >
           <ShoppingBag size={14} />
           Top buyers
         </button>
-        <button onClick={() => setActiveTab("vendors")} className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === "vendors" ? "bg-gold-500 text-[#0e1e38]" : "text-[#94aed6] hover:text-[#f7f4ec]"}`}>
+        <button
+          onClick={() => setActiveTab("vendors")}
+          className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === "vendors" ? "bg-gold-500 text-[#0e1e38]" : "text-[#94aed6] hover:text-[#f7f4ec]"}`}
+        >
           <Users size={14} />
           Top vendors
         </button>
