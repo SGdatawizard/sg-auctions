@@ -124,9 +124,9 @@ export default function FinancialsPage() {
       }
 
       // Calculate total earned after all lots processed
-      for (const row of auctionMap.values()) {
+      Array.from(auctionMap.values()).forEach((row) => {
         row.totalEarned = row.totalCommission + row.totalBP;
-      }
+      });
 
       const financialRows = Array.from(auctionMap.values())
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
