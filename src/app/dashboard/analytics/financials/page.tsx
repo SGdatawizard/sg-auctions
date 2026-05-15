@@ -34,6 +34,12 @@ function parseCommissionRate(rate: string | null): number {
   return isNaN(parsed) ? 0 : parsed / 100;
 }
 
+function toNum(value: unknown): number {
+  if (value === null || value === undefined || value === "") return 0;
+  const parsed = parseFloat(String(value).replace(/[£$€,\s]/g, ""));
+  return isNaN(parsed) ? 0 : parsed;
+}
+
 export default function FinancialsPage() {
   const [auctions, setAuctions] = useState<Auction[]>([]);
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -77,6 +83,9 @@ export default function FinancialsPage() {
       }
 
       const auctionIds = filteredAuctions.map((a) => a.id);
+
+      // Use auctions table for hammer — reliable stored value
+      // Fetch lots only for commission calculation
       const { data: lots } = await supabase
         .from("lots")
         .select("auction_id, sold, hammer_price, commission_rate")
@@ -97,26 +106,26 @@ export default function FinancialsPage() {
           saleNumber: auction.sale_number,
           auctionCategory: auction.auction_category,
           date: auction.date,
-          totalHammer: 0,
+          totalHammer: toNum(auction.total_hammer_value),
           totalCommission: 0,
           totalBP: 0,
           totalEarned: 0,
-          lotCount: 0,
+          lotCount: auction.lots_sold,
         });
       }
 
       for (const lot of lots) {
         const row = auctionMap.get(lot.auction_id);
         if (!row) continue;
-        const hammer = lot.hammer_price ?? 0;
+        const hammer = toNum(lot.hammer_price);
         const commRate = parseCommissionRate(lot.commission_rate);
-        const commission = hammer * commRate;
-        const bp = hammer * 0.23;
-        row.totalHammer += hammer;
-        row.totalCommission += commission;
-        row.totalBP += bp;
-        row.totalEarned += commission + bp;
-        row.lotCount += 1;
+        row.totalCommission += hammer * commRate;
+        row.totalBP += hammer * 0.23;
+      }
+
+      // Calculate total earned after all lots processed
+      for (const row of auctionMap.values()) {
+        row.totalEarned = row.totalCommission + row.totalBP;
       }
 
       const financialRows = Array.from(auctionMap.values())
@@ -158,7 +167,6 @@ export default function FinancialsPage() {
         <p className="text-[#6687bc] text-sm mt-1">Commission, buyers premium and total earned by auction</p>
       </div>
 
-      {/* Filters */}
       <div className="card py-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
@@ -184,7 +192,6 @@ export default function FinancialsPage() {
         </div>
       ) : (
         <>
-          {/* Overall totals */}
           <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
             <div className="card">
               <p className="stat-label">Total hammer value</p>
@@ -204,7 +211,6 @@ export default function FinancialsPage() {
             </div>
           </div>
 
-          {/* Category breakdown */}
           {categoryTotals.length > 1 && (
             <div className="card p-0 overflow-hidden">
               <div className="px-6 py-4 border-b border-[#1e3a6b]">
@@ -239,7 +245,6 @@ export default function FinancialsPage() {
             </div>
           )}
 
-          {/* Per auction breakdown */}
           <div className="card p-0 overflow-hidden">
             <div className="px-6 py-4 border-b border-[#1e3a6b]">
               <h2 className="section-title">By auction</h2>
