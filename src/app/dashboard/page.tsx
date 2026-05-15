@@ -3,13 +3,23 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatCurrency, formatPercent } from "@/lib/utils/formatters";
-import { Gavel, TrendingUp, PackageCheck, BarChart3 } from "lucide-react";
+import { Gavel, TrendingUp, PackageCheck, BarChart3, PoundSterling, Receipt, Wallet } from "lucide-react";
 import type { KPISummary, Auction } from "@/lib/types/database";
 import { AUCTION_CATEGORIES } from "@/lib/types/database";
 import Link from "next/link";
 
+function parseCommissionRate(rate: string | null): number {
+  if (!rate) return 0;
+  const cleaned = rate.replace("%", "").trim();
+  const parsed = parseFloat(cleaned);
+  return isNaN(parsed) ? 0 : parsed / 100;
+}
+
 export default function DashboardPage() {
   const [kpi, setKpi] = useState<KPISummary | null>(null);
+  const [totalCommission, setTotalCommission] = useState(0);
+  const [totalBP, setTotalBP] = useState(0);
+  const [totalEarned, setTotalEarned] = useState(0);
   const [recentAuctions, setRecentAuctions] = useState<Auction[]>([]);
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [loading, setLoading] = useState(true);
@@ -31,20 +41,27 @@ export default function DashboardPage() {
       }
 
       const auctionIds = auctions.map((a) => a.id);
+      let lots: { sold: boolean; hammer_price: number | null; commission_rate: string | null }[] = [];
 
-      let lots: { sold: boolean; hammer_price: number | null }[] = [];
       if (auctionIds.length > 0) {
         const { data: lotsData } = await supabase
           .from("lots")
-          .select("sold, hammer_price")
+          .select("sold, hammer_price, commission_rate")
           .in("auction_id", auctionIds);
         lots = lotsData ?? [];
       }
 
-      const totalSold = lots.filter((l) => l.sold).length;
-      const totalHammerValue = lots
-        .filter((l) => l.sold && l.hammer_price)
-        .reduce((sum, l) => sum + (l.hammer_price ?? 0), 0);
+      const soldLots = lots.filter((l) => l.sold);
+      const totalSold = soldLots.length;
+      const totalHammerValue = soldLots.reduce((sum, l) => sum + (l.hammer_price ?? 0), 0);
+
+      let commission = 0;
+      let bp = 0;
+      for (const lot of soldLots) {
+        const hammer = lot.hammer_price ?? 0;
+        commission += hammer * parseCommissionRate(lot.commission_rate);
+        bp += hammer * 0.23;
+      }
 
       setKpi({
         totalAuctions: auctions.length,
@@ -55,6 +72,9 @@ export default function DashboardPage() {
         averageLotValue: totalSold > 0 ? totalHammerValue / totalSold : 0,
       });
 
+      setTotalCommission(commission);
+      setTotalBP(bp);
+      setTotalEarned(commission + bp);
       setRecentAuctions(auctions.slice(0, 5));
       setLoading(false);
     }
@@ -96,6 +116,33 @@ export default function DashboardPage() {
     },
   ];
 
+  const financialStats = [
+    {
+      label: "Total commission",
+      value: formatCurrency(totalCommission),
+      icon: Receipt,
+      color: "text-gold-400",
+      bg: "bg-gold-500/10",
+      border: "border-gold-500/20",
+    },
+    {
+      label: "Total buyers premium",
+      value: formatCurrency(totalBP),
+      icon: PoundSterling,
+      color: "text-gold-400",
+      bg: "bg-gold-500/10",
+      border: "border-gold-500/20",
+    },
+    {
+      label: "Total earned",
+      value: formatCurrency(totalEarned),
+      icon: Wallet,
+      color: "text-gold-300",
+      bg: "bg-gold-500/15",
+      border: "border-gold-400/30",
+    },
+  ];
+
   return (
     <div className="space-y-8">
 
@@ -103,20 +150,14 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="page-title">Overview</h1>
-          <p className="text-[#6687bc] text-sm mt-1">
-            All-time auction performance summary
-          </p>
+          <p className="text-[#6687bc] text-sm mt-1">All-time auction performance summary</p>
         </div>
 
         {/* Category filter */}
         <div className="flex items-center gap-2">
           <button
             onClick={() => setCategoryFilter("all")}
-            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-              categoryFilter === "all"
-                ? "bg-gold-500 text-[#0e1e38]"
-                : "bg-[#1e3a6b] text-[#94aed6] hover:text-[#f7f4ec]"
-            }`}
+            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${categoryFilter === "all" ? "bg-gold-500 text-[#0e1e38]" : "bg-[#1e3a6b] text-[#94aed6] hover:text-[#f7f4ec]"}`}
           >
             All
           </button>
@@ -124,11 +165,7 @@ export default function DashboardPage() {
             <button
               key={cat}
               onClick={() => setCategoryFilter(cat)}
-              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                categoryFilter === cat
-                  ? "bg-gold-500 text-[#0e1e38]"
-                  : "bg-[#1e3a6b] text-[#94aed6] hover:text-[#f7f4ec]"
-              }`}
+              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${categoryFilter === cat ? "bg-gold-500 text-[#0e1e38]" : "bg-[#1e3a6b] text-[#94aed6] hover:text-[#f7f4ec]"}`}
             >
               {cat}
             </button>
@@ -145,6 +182,21 @@ export default function DashboardPage() {
           {/* KPI Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
             {stats.map((stat) => (
+              <div key={stat.label} className="card flex items-start gap-4">
+                <div className={`w-10 h-10 rounded-lg ${stat.bg} border ${stat.border} flex items-center justify-center flex-shrink-0`}>
+                  <stat.icon size={18} className={stat.color} />
+                </div>
+                <div>
+                  <p className="stat-value">{stat.value}</p>
+                  <p className="stat-label">{stat.label}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Financial KPIs */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {financialStats.map((stat) => (
               <div key={stat.label} className="card flex items-start gap-4">
                 <div className={`w-10 h-10 rounded-lg ${stat.bg} border ${stat.border} flex items-center justify-center flex-shrink-0`}>
                   <stat.icon size={18} className={stat.color} />
@@ -204,15 +256,9 @@ export default function DashboardPage() {
                   </thead>
                   <tbody>
                     {recentAuctions.map((auction) => (
-                      <tr
-                        key={auction.id}
-                        className="border-b border-[#1e3a6b]/50 hover:bg-[#1e3a6b]/30 transition-colors"
-                      >
+                      <tr key={auction.id} className="border-b border-[#1e3a6b]/50 hover:bg-[#1e3a6b]/30 transition-colors">
                         <td className="table-cell font-medium text-[#f7f4ec]">
-                          <Link
-                            href={`/dashboard/auctions/${auction.id}`}
-                            className="hover:text-gold-400 transition-colors"
-                          >
+                          <Link href={`/dashboard/auctions/${auction.id}`} className="hover:text-gold-400 transition-colors">
                             {auction.sale_number ? `${auction.sale_number} — ` : ""}{auction.name}
                           </Link>
                         </td>
@@ -222,27 +268,14 @@ export default function DashboardPage() {
                           ) : "—"}
                         </td>
                         <td className="table-cell">
-                          {new Date(auction.date).toLocaleDateString("en-GB", {
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric",
-                          })}
+                          {new Date(auction.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
                         </td>
                         <td className="table-cell text-right">{auction.total_lots}</td>
                         <td className="table-cell text-right">{auction.lots_sold}</td>
+                        <td className="table-cell text-right">{formatCurrency(auction.total_hammer_value)}</td>
                         <td className="table-cell text-right">
-                          {formatCurrency(auction.total_hammer_value)}
-                        </td>
-                        <td className="table-cell text-right">
-                          <span className={
-                            auction.total_lots > 0 &&
-                            (auction.lots_sold / auction.total_lots) * 100 >= 70
-                              ? "badge-green"
-                              : "badge-amber"
-                          }>
-                            {auction.total_lots > 0
-                              ? formatPercent((auction.lots_sold / auction.total_lots) * 100)
-                              : "—"}
+                          <span className={auction.total_lots > 0 && (auction.lots_sold / auction.total_lots) * 100 >= 70 ? "badge-green" : "badge-amber"}>
+                            {auction.total_lots > 0 ? formatPercent((auction.lots_sold / auction.total_lots) * 100) : "—"}
                           </span>
                         </td>
                       </tr>
