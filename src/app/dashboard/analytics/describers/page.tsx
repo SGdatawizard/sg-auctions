@@ -9,6 +9,12 @@ import * as XLSX from "xlsx";
 
 type AuctionFilter = "all" | string;
 
+function toNum(value: unknown): number {
+  if (value === null || value === undefined || value === "") return 0;
+  const parsed = parseFloat(String(value).replace(/[£$€,\s]/g, ""));
+  return isNaN(parsed) ? 0 : parsed;
+}
+
 export default function DescribersPage() {
   const [describers, setDescribers] = useState<DescriberSummary[]>([]);
   const [selected, setSelected] = useState<DescriberSummary | null>(null);
@@ -65,20 +71,20 @@ export default function DescribersPage() {
           const totalLots = describerLots.length;
           const soldLots = describerLots.filter((l) => l.sold);
           const totalSold = soldLots.length;
-          const totalHammerValue = soldLots.reduce((sum, l) => sum + (l.hammer_price ?? 0), 0);
+          const totalHammerValue = soldLots.reduce((sum, l) => sum + toNum(l.hammer_price), 0);
           const sellThroughRate = totalLots > 0 ? (totalSold / totalLots) * 100 : 0;
 
           const lotsWithEstimates = soldLots.filter((l) => l.estimate_low && l.estimate_high && l.hammer_price);
           const avgHammerVsEstimate = lotsWithEstimates.length > 0
             ? lotsWithEstimates.reduce((sum, l) => {
-                const mid = ((l.estimate_low ?? 0) + (l.estimate_high ?? 0)) / 2;
-                return sum + (mid > 0 ? (l.hammer_price ?? 0) / mid : 0);
+                const mid = (toNum(l.estimate_low) + toNum(l.estimate_high)) / 2;
+                return sum + (mid > 0 ? toNum(l.hammer_price) / mid : 0);
               }, 0) / lotsWithEstimates.length
             : 0;
 
           const estimateRangeBreakdown = ESTIMATE_RANGES.map((range) => {
             const rangeLots = describerLots.filter((l) => {
-              const mid = ((l.estimate_low ?? 0) + (l.estimate_high ?? 0)) / 2;
+              const mid = (toNum(l.estimate_low) + toNum(l.estimate_high)) / 2;
               if (mid < range.min) return false;
               if (range.max !== null && mid > range.max) return false;
               return true;
@@ -126,18 +132,12 @@ export default function DescribersPage() {
 
   async function generateReport(describer: DescriberSummary) {
     setGenerating(true);
-
     try {
-      // Get the selected auction name for the report title
-      const selectedAuction = auctionFilter !== "all"
-        ? auctions.find((a) => a.id === auctionFilter)
-        : null;
-
+      const selectedAuction = auctionFilter !== "all" ? auctions.find((a) => a.id === auctionFilter) : null;
       const auctionLabel = selectedAuction
         ? `${selectedAuction.sale_number ? selectedAuction.sale_number + " — " : ""}${selectedAuction.name}`
         : "All Auctions";
 
-      // Sheet 1 — Performance summary
       const summaryData = [
         ["SG Auctions — Describer Performance Report"],
         [""],
@@ -156,20 +156,15 @@ export default function DescribersPage() {
         ["SELL-THROUGH BY ESTIMATE RANGE"],
         ["Estimate Range", "Lots", "Sold", "Unsold", "Sell-through %"],
         ...describer.estimateRangeBreakdown.map((r) => [
-          r.range,
-          r.totalLots,
-          r.totalSold,
-          r.totalLots - r.totalSold,
+          r.range, r.totalLots, r.totalSold, r.totalLots - r.totalSold,
           r.totalLots > 0 ? `${r.sellThroughRate.toFixed(1)}%` : "—",
         ]),
       ];
 
-      // Sheet 2 — Unsold lots (fetch from Supabase)
       let unsoldLotsData: (string | number | null)[][] = [
         ["LOT NO.", "SG NUMBER", "RECEIPT NO.", "TITLE", "ESTIMATE LOW", "ESTIMATE HIGH", "RESERVE", "VENDOR"],
       ];
 
-      // Get auction ids for current filter
       let auctionIds: string[] = [];
       if (auctionFilter !== "all") {
         auctionIds = [auctionFilter];
@@ -188,7 +183,6 @@ export default function DescribersPage() {
 
         if (unsoldLots && unsoldLots.length > 0) {
           const lotIds = unsoldLots.map((l) => l.id);
-
           const { data: lotDescribers } = await supabase
             .from("lot_describers")
             .select("lot_id, describer_id")
@@ -206,17 +200,9 @@ export default function DescribersPage() {
 
             const vendorIds = Array.from(new Set((lotVendors ?? []).map((lv) => lv.vendor_id)));
             const vendorMap = new Map<string, string>();
-
             if (vendorIds.length > 0) {
-              const { data: vendors } = await supabase
-                .from("vendors")
-                .select("id, name")
-                .in("id", vendorIds);
-              if (vendors) {
-                for (const v of vendors) {
-                  vendorMap.set(v.id, v.name ?? "");
-                }
-              }
+              const { data: vendors } = await supabase.from("vendors").select("id, name").in("id", vendorIds);
+              if (vendors) { for (const v of vendors) { vendorMap.set(v.id, v.name ?? ""); } }
             }
 
             const lotToVendor = new Map<string, string>();
@@ -230,13 +216,8 @@ export default function DescribersPage() {
               ...myUnsoldLots
                 .sort((a, b) => (a.lot_number ?? "").localeCompare(b.lot_number ?? ""))
                 .map((lot) => [
-                  lot.lot_number ?? "",
-                  lot.stock_number ?? "",
-                  lot.receipt_no ?? "",
-                  lot.title,
-                  lot.estimate_low ?? "",
-                  lot.estimate_high ?? "",
-                  lot.reserve ?? "",
+                  lot.lot_number ?? "", lot.stock_number ?? "", lot.receipt_no ?? "", lot.title,
+                  lot.estimate_low ?? "", lot.estimate_high ?? "", lot.reserve ?? "",
                   lotToVendor.get(lot.id) ?? "",
                 ]),
             ];
@@ -244,9 +225,7 @@ export default function DescribersPage() {
         }
       }
 
-      // Build workbook
       const wb = XLSX.utils.book_new();
-
       const ws1 = XLSX.utils.aoa_to_sheet(summaryData);
       ws1["!cols"] = [{ wch: 30 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 18 }];
       XLSX.utils.book_append_sheet(wb, ws1, "Performance Summary");
@@ -255,24 +234,17 @@ export default function DescribersPage() {
       ws2["!cols"] = [{ wch: 8 }, { wch: 16 }, { wch: 12 }, { wch: 50 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 25 }];
       XLSX.utils.book_append_sheet(wb, ws2, "Unsold Lots");
 
-      // Download the file
       const filename = `${describer.name.replace(/\s+/g, "_")}_Report_${new Date().toISOString().split("T")[0]}.xlsx`;
       XLSX.writeFile(wb, filename);
 
-      // Open Outlook with pre-filled email if we have their email
       if (describer.email) {
         const subject = encodeURIComponent(`Your Performance Report — ${auctionLabel}`);
-        const body = encodeURIComponent(
-          `Dear ${describer.name.split(" ")[0]},\n\nPlease find attached your performance report for ${auctionLabel}.\n\nThe report includes your sell-through summary, performance by estimate range, and a full list of unsold lots.\n\nKind regards`
-        );
-        setTimeout(() => {
-          window.location.href = `mailto:${describer.email}?subject=${subject}&body=${body}`;
-        }, 1000);
+        const body = encodeURIComponent(`Dear ${describer.name.split(" ")[0]},\n\nPlease find attached your performance report for ${auctionLabel}.\n\nThe report includes your sell-through summary, performance by estimate range, and a full list of unsold lots.\n\nKind regards`);
+        setTimeout(() => { window.location.href = `mailto:${describer.email}?subject=${subject}&body=${body}`; }, 1000);
       }
     } catch (err) {
       console.error("Report generation error:", err);
     }
-
     setGenerating(false);
   }
 
@@ -308,7 +280,6 @@ export default function DescribersPage() {
         </div>
       </div>
 
-      {/* Filters */}
       <div className="card flex items-center gap-4 py-4">
         <div className="flex-1">
           <label className="label">Filter by auction category</label>
@@ -331,9 +302,7 @@ export default function DescribersPage() {
           </select>
         </div>
         <div className="flex-none pt-5">
-          <button onClick={() => { setCategoryFilter("all"); setAuctionFilter("all"); }} className="btn-secondary text-sm">
-            Clear filters
-          </button>
+          <button onClick={() => { setCategoryFilter("all"); setAuctionFilter("all"); }} className="btn-secondary text-sm">Clear filters</button>
         </div>
       </div>
 
@@ -343,7 +312,6 @@ export default function DescribersPage() {
         </div>
       ) : (
         <>
-          {/* Summary table */}
           <div className="card p-0 overflow-hidden">
             <div className="px-6 py-4 border-b border-[#1e3a6b]">
               <h2 className="section-title">All describers</h2>
@@ -404,22 +372,15 @@ export default function DescribersPage() {
             </div>
           </div>
 
-          {/* Selected describer detail */}
           {selected && (
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <h2 className="section-title text-xl">{selected.name}</h2>
                   <span className="badge badge-amber">Estimate range breakdown</span>
-                  {selected.email && (
-                    <span className="text-xs text-[#6687bc]">{selected.email}</span>
-                  )}
+                  {selected.email && (<span className="text-xs text-[#6687bc]">{selected.email}</span>)}
                 </div>
-                <button
-                  onClick={() => generateReport(selected)}
-                  disabled={generating}
-                  className="btn-primary flex items-center gap-2 text-sm"
-                >
+                <button onClick={() => generateReport(selected)} disabled={generating} className="btn-primary flex items-center gap-2 text-sm">
                   <FileSpreadsheet size={14} />
                   {generating ? "Generating..." : "Generate & send report"}
                   {selected.email && <Mail size={14} />}
@@ -427,22 +388,10 @@ export default function DescribersPage() {
               </div>
 
               <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-                <div className="card">
-                  <p className="stat-label">Total lots</p>
-                  <p className="stat-value mt-1">{selected.totalLots.toLocaleString()}</p>
-                </div>
-                <div className="card">
-                  <p className="stat-label">Total sold</p>
-                  <p className="stat-value mt-1">{selected.totalSold.toLocaleString()}</p>
-                </div>
-                <div className="card">
-                  <p className="stat-label">Total hammer value</p>
-                  <p className="stat-value mt-1">{formatCurrency(selected.totalHammerValue)}</p>
-                </div>
-                <div className="card">
-                  <p className="stat-label">Sell-through rate</p>
-                  <p className="stat-value mt-1">{formatPercent(selected.sellThroughRate)}</p>
-                </div>
+                <div className="card"><p className="stat-label">Total lots</p><p className="stat-value mt-1">{selected.totalLots.toLocaleString()}</p></div>
+                <div className="card"><p className="stat-label">Total sold</p><p className="stat-value mt-1">{selected.totalSold.toLocaleString()}</p></div>
+                <div className="card"><p className="stat-label">Total hammer value</p><p className="stat-value mt-1">{formatCurrency(selected.totalHammerValue)}</p></div>
+                <div className="card"><p className="stat-label">Sell-through rate</p><p className="stat-value mt-1">{formatPercent(selected.sellThroughRate)}</p></div>
               </div>
 
               <div className="card p-0 overflow-hidden">
@@ -473,21 +422,14 @@ export default function DescribersPage() {
                               <span className={r.sellThroughRate >= 80 ? "badge-green" : r.sellThroughRate >= 60 ? "badge-amber" : "badge-red"}>
                                 {formatPercent(r.sellThroughRate)}
                               </span>
-                            ) : (
-                              <span className="text-[#2f5597]">—</span>
-                            )}
+                            ) : (<span className="text-[#2f5597]">—</span>)}
                           </td>
                           <td className="px-6 py-3">
                             {r.totalLots > 0 ? (
                               <div className="w-full bg-[#1e3a6b] rounded-full h-2">
-                                <div
-                                  className={`h-2 rounded-full transition-all ${r.sellThroughRate >= 80 ? "bg-emerald-500" : r.sellThroughRate >= 60 ? "bg-gold-500" : "bg-red-500"}`}
-                                  style={{ width: `${r.sellThroughRate}%` }}
-                                />
+                                <div className={`h-2 rounded-full transition-all ${r.sellThroughRate >= 80 ? "bg-emerald-500" : r.sellThroughRate >= 60 ? "bg-gold-500" : "bg-red-500"}`} style={{ width: `${r.sellThroughRate}%` }} />
                               </div>
-                            ) : (
-                              <div className="w-full bg-[#1e3a6b] rounded-full h-2" />
-                            )}
+                            ) : (<div className="w-full bg-[#1e3a6b] rounded-full h-2" />)}
                           </td>
                         </tr>
                       ))}
