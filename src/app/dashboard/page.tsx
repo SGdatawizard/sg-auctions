@@ -15,6 +15,12 @@ function parseCommissionRate(rate: string | null): number {
   return isNaN(parsed) ? 0 : parsed / 100;
 }
 
+function toNum(value: unknown): number {
+  if (value === null || value === undefined || value === "") return 0;
+  const parsed = parseFloat(String(value).replace(/[£$€,\s]/g, ""));
+  return isNaN(parsed) ? 0 : parsed;
+}
+
 export default function DashboardPage() {
   const [kpi, setKpi] = useState<KPISummary | null>(null);
   const [totalCommission, setTotalCommission] = useState(0);
@@ -41,7 +47,7 @@ export default function DashboardPage() {
       }
 
       const auctionIds = auctions.map((a) => a.id);
-      let lots: { sold: boolean; hammer_price: number | null; commission_rate: string | null }[] = [];
+      let lots: { sold: boolean; hammer_price: unknown; commission_rate: string | null }[] = [];
 
       if (auctionIds.length > 0) {
         const { data: lotsData } = await supabase
@@ -53,14 +59,12 @@ export default function DashboardPage() {
 
       const soldLots = lots.filter((l) => l.sold);
       const totalSold = soldLots.length;
-
-      // Use auctions table for hammer value — more reliable than summing lots
-      const totalHammerValue = auctions.reduce((sum, a) => sum + (a.total_hammer_value ?? 0), 0);
+      const totalHammerValue = auctions.reduce((sum, a) => sum + toNum(a.total_hammer_value), 0);
 
       let commission = 0;
       let bp = 0;
       for (const lot of soldLots) {
-        const hammer = lot.hammer_price ?? 0;
+        const hammer = toNum(lot.hammer_price);
         commission += hammer * parseCommissionRate(lot.commission_rate);
         bp += hammer * 0.23;
       }
@@ -84,65 +88,16 @@ export default function DashboardPage() {
   }, [categoryFilter]);
 
   const stats = [
-    {
-      label: "Total auctions",
-      value: kpi?.totalAuctions.toString() ?? "0",
-      icon: Gavel,
-      color: "text-gold-400",
-      bg: "bg-gold-500/10",
-      border: "border-gold-500/20",
-    },
-    {
-      label: "Total hammer value",
-      value: formatCurrency(kpi?.totalHammerValue ?? 0),
-      icon: TrendingUp,
-      color: "text-emerald-400",
-      bg: "bg-emerald-500/10",
-      border: "border-emerald-500/20",
-    },
-    {
-      label: "Sell-through rate",
-      value: formatPercent(kpi?.sellThroughRate ?? 0),
-      icon: PackageCheck,
-      color: "text-blue-400",
-      bg: "bg-blue-500/10",
-      border: "border-blue-500/20",
-    },
-    {
-      label: "Average lot value",
-      value: formatCurrency(kpi?.averageLotValue ?? 0),
-      icon: BarChart3,
-      color: "text-purple-400",
-      bg: "bg-purple-500/10",
-      border: "border-purple-500/20",
-    },
+    { label: "Total auctions", value: kpi?.totalAuctions.toString() ?? "0", icon: Gavel, color: "text-gold-400", bg: "bg-gold-500/10", border: "border-gold-500/20" },
+    { label: "Total hammer value", value: formatCurrency(kpi?.totalHammerValue ?? 0), icon: TrendingUp, color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20" },
+    { label: "Sell-through rate", value: formatPercent(kpi?.sellThroughRate ?? 0), icon: PackageCheck, color: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/20" },
+    { label: "Average lot value", value: formatCurrency(kpi?.averageLotValue ?? 0), icon: BarChart3, color: "text-purple-400", bg: "bg-purple-500/10", border: "border-purple-500/20" },
   ];
 
   const financialStats = [
-    {
-      label: "Total commission",
-      value: formatCurrency(totalCommission),
-      icon: Receipt,
-      color: "text-gold-400",
-      bg: "bg-gold-500/10",
-      border: "border-gold-500/20",
-    },
-    {
-      label: "Total buyers premium",
-      value: formatCurrency(totalBP),
-      icon: PoundSterling,
-      color: "text-gold-400",
-      bg: "bg-gold-500/10",
-      border: "border-gold-500/20",
-    },
-    {
-      label: "Total earned",
-      value: formatCurrency(totalEarned),
-      icon: Wallet,
-      color: "text-gold-300",
-      bg: "bg-gold-500/15",
-      border: "border-gold-400/30",
-    },
+    { label: "Total commission", value: formatCurrency(totalCommission), icon: Receipt, color: "text-gold-400", bg: "bg-gold-500/10", border: "border-gold-500/20" },
+    { label: "Total buyers premium", value: formatCurrency(totalBP), icon: PoundSterling, color: "text-gold-400", bg: "bg-gold-500/10", border: "border-gold-500/20" },
+    { label: "Total earned", value: formatCurrency(totalEarned), icon: Wallet, color: "text-gold-300", bg: "bg-gold-500/15", border: "border-gold-400/30" },
   ];
 
   return (
@@ -153,20 +108,9 @@ export default function DashboardPage() {
           <p className="text-[#6687bc] text-sm mt-1">All-time auction performance summary</p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setCategoryFilter("all")}
-            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${categoryFilter === "all" ? "bg-gold-500 text-[#0e1e38]" : "bg-[#1e3a6b] text-[#94aed6] hover:text-[#f7f4ec]"}`}
-          >
-            All
-          </button>
+          <button onClick={() => setCategoryFilter("all")} className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${categoryFilter === "all" ? "bg-gold-500 text-[#0e1e38]" : "bg-[#1e3a6b] text-[#94aed6] hover:text-[#f7f4ec]"}`}>All</button>
           {AUCTION_CATEGORIES.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setCategoryFilter(cat)}
-              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${categoryFilter === cat ? "bg-gold-500 text-[#0e1e38]" : "bg-[#1e3a6b] text-[#94aed6] hover:text-[#f7f4ec]"}`}
-            >
-              {cat}
-            </button>
+            <button key={cat} onClick={() => setCategoryFilter(cat)} className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${categoryFilter === cat ? "bg-gold-500 text-[#0e1e38]" : "bg-[#1e3a6b] text-[#94aed6] hover:text-[#f7f4ec]"}`}>{cat}</button>
           ))}
         </div>
       </div>
@@ -216,18 +160,14 @@ export default function DashboardPage() {
             </div>
             <div className="card">
               <p className="stat-label">Lots unsold</p>
-              <p className="stat-value mt-1">
-                {((kpi?.totalLots ?? 0) - (kpi?.totalSold ?? 0)).toLocaleString()}
-              </p>
+              <p className="stat-value mt-1">{((kpi?.totalLots ?? 0) - (kpi?.totalSold ?? 0)).toLocaleString()}</p>
             </div>
           </div>
 
           <div className="card">
             <h2 className="section-title mb-4">
               Recent auctions
-              {categoryFilter !== "all" && (
-                <span className="ml-2 badge badge-amber">{categoryFilter}</span>
-              )}
+              {categoryFilter !== "all" && (<span className="ml-2 badge badge-amber">{categoryFilter}</span>)}
             </h2>
             {recentAuctions.length === 0 ? (
               <div className="text-center py-12">
@@ -257,16 +197,14 @@ export default function DashboardPage() {
                           </Link>
                         </td>
                         <td className="table-cell">
-                          {auction.auction_category ? (
-                            <span className="badge badge-amber">{auction.auction_category}</span>
-                          ) : "—"}
+                          {auction.auction_category ? (<span className="badge badge-amber">{auction.auction_category}</span>) : "—"}
                         </td>
                         <td className="table-cell">
                           {new Date(auction.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
                         </td>
                         <td className="table-cell text-right">{auction.total_lots}</td>
                         <td className="table-cell text-right">{auction.lots_sold}</td>
-                        <td className="table-cell text-right">{formatCurrency(auction.total_hammer_value)}</td>
+                        <td className="table-cell text-right">{formatCurrency(toNum(auction.total_hammer_value))}</td>
                         <td className="table-cell text-right">
                           <span className={auction.total_lots > 0 && (auction.lots_sold / auction.total_lots) * 100 >= 70 ? "badge-green" : "badge-amber"}>
                             {auction.total_lots > 0 ? formatPercent((auction.lots_sold / auction.total_lots) * 100) : "—"}
