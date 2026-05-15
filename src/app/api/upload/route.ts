@@ -207,8 +207,10 @@ export async function POST(request: NextRequest) {
       (sum, l) => sum + (l.hammer_price ?? 0), 0
     );
 
-    // Build lot number -> id map
-    const lotMap = new Map(insertedLots.map((l) => [l.lot_number, l.id]));
+    // Build lot number -> id map with normalised keys
+    const lotMap = new Map(
+      insertedLots.map((l) => [String(l.lot_number ?? "").trim(), l.id])
+    );
 
     // ── Vendors ──────────────────────────────────────────────────────
     const vendorMap = new Map<string, { name: string | null; email: string; country: string | null }>();
@@ -345,7 +347,7 @@ export async function POST(request: NextRequest) {
     const lotDescribers: { lot_id: string; describer_id: string }[] = [];
 
     for (const row of rows) {
-      const lotNo = str(row["Lot No"]);
+      const lotNo = String(str(row["Lot No"]) ?? "").trim();
       const lotId = lotNo ? lotMap.get(lotNo) : undefined;
       if (!lotId) continue;
 
