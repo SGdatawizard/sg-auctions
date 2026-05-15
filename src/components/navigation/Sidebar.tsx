@@ -34,6 +34,10 @@ const navigation = [
         href: "/dashboard/analytics",
       },
       {
+        name: "Financials",
+        href: "/dashboard/analytics/financials",
+      },
+      {
         name: "Describers",
         href: "/dashboard/analytics/describers",
       },
@@ -44,6 +48,10 @@ const navigation = [
       {
         name: "Buyers & vendors",
         href: "/dashboard/analytics/people",
+      },
+      {
+        name: "Re-offer tracker",
+        href: "/dashboard/analytics/reoffers",
       },
     ],
   },
