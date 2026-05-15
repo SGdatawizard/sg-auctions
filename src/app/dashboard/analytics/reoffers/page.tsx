@@ -93,7 +93,7 @@ export default function ReoffersPage() {
 
       const result: ReofferRow[] = [];
 
-      for (const [stockNumber, lots] of stockMap.entries()) {
+      for (const [stockNumber, lots] of Array.from(stockMap.entries())) {
         // If ANY appearance is sold, skip this stock number entirely
         const everSold = lots.some((l) => l.sold);
         if (everSold) continue;
