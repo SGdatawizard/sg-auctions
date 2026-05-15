@@ -53,7 +53,9 @@ export default function DashboardPage() {
 
       const soldLots = lots.filter((l) => l.sold);
       const totalSold = soldLots.length;
-      const totalHammerValue = soldLots.reduce((sum, l) => sum + (l.hammer_price ?? 0), 0);
+
+      // Use auctions table for hammer value — more reliable than summing lots
+      const totalHammerValue = auctions.reduce((sum, a) => sum + (a.total_hammer_value ?? 0), 0);
 
       let commission = 0;
       let bp = 0;
@@ -145,15 +147,11 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8">
-
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="page-title">Overview</h1>
           <p className="text-[#6687bc] text-sm mt-1">All-time auction performance summary</p>
         </div>
-
-        {/* Category filter */}
         <div className="flex items-center gap-2">
           <button
             onClick={() => setCategoryFilter("all")}
@@ -179,7 +177,6 @@ export default function DashboardPage() {
         </div>
       ) : (
         <>
-          {/* KPI Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
             {stats.map((stat) => (
               <div key={stat.label} className="card flex items-start gap-4">
@@ -194,7 +191,6 @@ export default function DashboardPage() {
             ))}
           </div>
 
-          {/* Financial KPIs */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {financialStats.map((stat) => (
               <div key={stat.label} className="card flex items-start gap-4">
@@ -209,7 +205,6 @@ export default function DashboardPage() {
             ))}
           </div>
 
-          {/* Secondary stats */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="card">
               <p className="stat-label">Total lots offered</p>
@@ -227,7 +222,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Recent auctions */}
           <div className="card">
             <h2 className="section-title mb-4">
               Recent auctions
