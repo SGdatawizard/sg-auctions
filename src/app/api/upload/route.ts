@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
       const sheet = workbook.Sheets[sheetName];
       rows = XLSX.utils.sheet_to_json<RawRow>(sheet, {
         defval: null,
-        raw: false,
+        raw: true,
       });
     }
 
