@@ -84,18 +84,13 @@ export default function FinancialsPage() {
 
       const auctionIds = filteredAuctions.map((a) => a.id);
 
-      // Use auctions table for hammer — reliable stored value
-      // Fetch lots only for commission calculation
-      const { data: lots } = await supabase
+      // Fetch all lots then filter sold in JS to avoid Supabase boolean quirk
+      const { data: allLots } = await supabase
         .from("lots")
         .select("auction_id, sold, hammer_price, commission_rate")
-        .in("auction_id", auctionIds)
-        .eq("sold", true);
+        .in("auction_id", auctionIds);
 
-      if (!lots) {
-        setLoading(false);
-        return;
-      }
+      const lots = (allLots ?? []).filter((l) => l.sold === true);
 
       // Build per-auction financials
       const auctionMap = new Map<string, FinancialRow>();
@@ -123,7 +118,6 @@ export default function FinancialsPage() {
         row.totalBP += hammer * 0.23;
       }
 
-      // Calculate total earned after all lots processed
       Array.from(auctionMap.values()).forEach((row) => {
         row.totalEarned = row.totalCommission + row.totalBP;
       });
@@ -133,7 +127,6 @@ export default function FinancialsPage() {
 
       setRows(financialRows);
 
-      // Build category totals
       const catMap = new Map<string, CategoryTotals>();
       for (const row of financialRows) {
         const cat = row.auctionCategory ?? "Uncategorised";
