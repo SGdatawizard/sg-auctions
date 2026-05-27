@@ -84,11 +84,13 @@ export default function FinancialsPage() {
 
       const auctionIds = filteredAuctions.map((a) => a.id);
 
-      // Fetch all lots then filter sold in JS to avoid Supabase boolean quirk
+      // Fetch all lots — limit 10000 to avoid Supabase default 1000 row cap
+      // Filter sold in JS to avoid Supabase boolean quirk
       const { data: allLots } = await supabase
         .from("lots")
         .select("auction_id, sold, hammer_price, commission_rate")
-        .in("auction_id", auctionIds);
+        .in("auction_id", auctionIds)
+        .limit(10000);
 
       const lots = (allLots ?? []).filter((l) => l.sold === true);
 
