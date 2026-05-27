@@ -37,15 +37,39 @@ export default function DescribersPage() {
         .select("id, name, email")
         .order("name");
 
-      const { data: lotDescribers } = await supabase
-        .from("lot_describers")
-        .select("lot_id, describer_id");
+      // Paginated lot_describers
+      const lotDescribers: { lot_id: string; describer_id: string }[] = [];
+      {
+        let from = 0;
+        while (true) {
+          const { data, error } = await supabase
+            .from("lot_describers")
+            .select("lot_id, describer_id")
+            .range(from, from + 999);
+          if (error || !data || data.length === 0) break;
+          lotDescribers.push(...data);
+          if (data.length < 1000) break;
+          from += 1000;
+        }
+      }
 
-      const { data: lots } = await supabase
-        .from("lots")
-        .select("id, sold, hammer_price, estimate_low, estimate_high, auction_id");
+      // Paginated lots
+      const lots: { id: string; sold: boolean; hammer_price: number | null; estimate_low: number | null; estimate_high: number | null; auction_id: string }[] = [];
+      {
+        let from = 0;
+        while (true) {
+          const { data, error } = await supabase
+            .from("lots")
+            .select("id, sold, hammer_price, estimate_low, estimate_high, auction_id")
+            .range(from, from + 999);
+          if (error || !data || data.length === 0) break;
+          lots.push(...data);
+          if (data.length < 1000) break;
+          from += 1000;
+        }
+      }
 
-      if (!describerRows || !lotDescribers || !lots || !auctionRows) {
+      if (!describerRows || !auctionRows) {
         setLoading(false);
         return;
       }
@@ -69,7 +93,7 @@ export default function DescribersPage() {
             .filter(Boolean) as typeof filteredLots;
 
           const totalLots = describerLots.length;
-          const soldLots = describerLots.filter((l) => l.sold);
+          const soldLots = describerLots.filter((l) => l.sold === true);
           const totalSold = soldLots.length;
           const totalHammerValue = soldLots.reduce((sum, l) => sum + toNum(l.hammer_price), 0);
           const sellThroughRate = totalLots > 0 ? (totalSold / totalLots) * 100 : 0;
@@ -89,7 +113,7 @@ export default function DescribersPage() {
               if (range.max !== null && mid > range.max) return false;
               return true;
             });
-            const rangeSold = rangeLots.filter((l) => l.sold).length;
+            const rangeSold = rangeLots.filter((l) => l.sold === true).length;
             return {
               range: range.label,
               totalLots: rangeLots.length,
@@ -183,13 +207,13 @@ export default function DescribersPage() {
 
         if (unsoldLots && unsoldLots.length > 0) {
           const lotIds = unsoldLots.map((l) => l.id);
-          const { data: lotDescribers } = await supabase
+          const { data: lotDescribersForReport } = await supabase
             .from("lot_describers")
             .select("lot_id, describer_id")
             .in("lot_id", lotIds)
             .eq("describer_id", describer.id);
 
-          const describerLotIds = new Set((lotDescribers ?? []).map((ld) => ld.lot_id));
+          const describerLotIds = new Set((lotDescribersForReport ?? []).map((ld) => ld.lot_id));
           const myUnsoldLots = unsoldLots.filter((l) => describerLotIds.has(l.id));
 
           if (myUnsoldLots.length > 0) {
