@@ -42,16 +42,15 @@ function toNum(value: unknown): number {
 
 async function fetchAllLots(
   supabase: ReturnType<typeof createClient>,
-  auctionIds: string[],
-  select: string
+  auctionIds: string[]
 ) {
   const pageSize = 1000;
-  const results: Record<string, unknown>[] = [];
+  const results: { auction_id: string; sold: boolean; hammer_price: unknown; commission_rate: string | null }[] = [];
   let from = 0;
   while (true) {
     const { data, error } = await supabase
       .from("lots")
-      .select(select)
+      .select("auction_id, sold, hammer_price, commission_rate")
       .in("auction_id", auctionIds)
       .range(from, from + pageSize - 1);
     if (error || !data || data.length === 0) break;
@@ -105,9 +104,7 @@ export default function FinancialsPage() {
       }
 
       const auctionIds = filteredAuctions.map((a) => a.id);
-
-      // Paginated fetch — works for any dataset size
-      const allLots = await fetchAllLots(supabase, auctionIds, "auction_id, sold, hammer_price, commission_rate");
+      const allLots = await fetchAllLots(supabase, auctionIds);
       const lots = allLots.filter((l) => l.sold === true);
 
       const auctionMap = new Map<string, FinancialRow>();
@@ -127,10 +124,10 @@ export default function FinancialsPage() {
       }
 
       for (const lot of lots) {
-        const row = auctionMap.get(lot.auction_id as string);
+        const row = auctionMap.get(lot.auction_id);
         if (!row) continue;
         const hammer = toNum(lot.hammer_price);
-        const commRate = parseCommissionRate(lot.commission_rate as string | null);
+        const commRate = parseCommissionRate(lot.commission_rate);
         row.totalCommission += hammer * commRate;
         row.totalBP += hammer * 0.23;
       }
