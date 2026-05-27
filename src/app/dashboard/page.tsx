@@ -35,7 +35,16 @@ export default function DashboardPage() {
     async function loadData() {
       setLoading(true);
 
-      let auctionQuery = supabase.from("auctions").select("*").order("date", { ascending: false });
+      const currentYear = new Date().getFullYear();
+      const yearStart = `${currentYear}-01-01`;
+      const yearEnd = `${currentYear}-12-31`;
+
+      let auctionQuery = supabase
+        .from("auctions")
+        .select("*")
+        .gte("date", yearStart)
+        .lte("date", yearEnd)
+        .order("date", { ascending: false });
       if (categoryFilter !== "all") {
         auctionQuery = auctionQuery.eq("auction_category", categoryFilter);
       }
@@ -113,7 +122,7 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="page-title">Overview</h1>
-          <p className="text-[#6687bc] text-sm mt-1">All-time auction performance summary</p>
+          <p className="text-[#6687bc] text-sm mt-1">{new Date().getFullYear()} performance summary</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => setCategoryFilter("all")} className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${categoryFilter === "all" ? "bg-gold-500 text-[#0e1e38]" : "bg-[#1e3a6b] text-[#94aed6] hover:text-[#f7f4ec]"}`}>All</button>
@@ -180,7 +189,7 @@ export default function DashboardPage() {
             {recentAuctions.length === 0 ? (
               <div className="text-center py-12">
                 <Gavel size={32} className="text-[#2f5597] mx-auto mb-3" />
-                <p className="text-[#6687bc] text-sm">No auctions found</p>
+                <p className="text-[#6687bc] text-sm">No auctions found for {new Date().getFullYear()}</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
