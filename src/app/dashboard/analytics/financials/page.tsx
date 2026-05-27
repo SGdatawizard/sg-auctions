@@ -40,6 +40,28 @@ function toNum(value: unknown): number {
   return isNaN(parsed) ? 0 : parsed;
 }
 
+async function fetchAllLots(
+  supabase: ReturnType<typeof createClient>,
+  auctionIds: string[],
+  select: string
+) {
+  const pageSize = 1000;
+  const results: Record<string, unknown>[] = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from("lots")
+      .select(select)
+      .in("auction_id", auctionIds)
+      .range(from, from + pageSize - 1);
+    if (error || !data || data.length === 0) break;
+    results.push(...data);
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+  return results;
+}
+
 export default function FinancialsPage() {
   const [auctions, setAuctions] = useState<Auction[]>([]);
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -84,17 +106,10 @@ export default function FinancialsPage() {
 
       const auctionIds = filteredAuctions.map((a) => a.id);
 
-      // Fetch all lots — limit 10000 to avoid Supabase default 1000 row cap
-      // Filter sold in JS to avoid Supabase boolean quirk
-      const { data: allLots } = await supabase
-        .from("lots")
-        .select("auction_id, sold, hammer_price, commission_rate")
-        .in("auction_id", auctionIds)
-        .limit(10000);
+      // Paginated fetch — works for any dataset size
+      const allLots = await fetchAllLots(supabase, auctionIds, "auction_id, sold, hammer_price, commission_rate");
+      const lots = allLots.filter((l) => l.sold === true);
 
-      const lots = (allLots ?? []).filter((l) => l.sold === true);
-
-      // Build per-auction financials
       const auctionMap = new Map<string, FinancialRow>();
       for (const auction of filteredAuctions) {
         auctionMap.set(auction.id, {
@@ -112,10 +127,10 @@ export default function FinancialsPage() {
       }
 
       for (const lot of lots) {
-        const row = auctionMap.get(lot.auction_id);
+        const row = auctionMap.get(lot.auction_id as string);
         if (!row) continue;
         const hammer = toNum(lot.hammer_price);
-        const commRate = parseCommissionRate(lot.commission_rate);
+        const commRate = parseCommissionRate(lot.commission_rate as string | null);
         row.totalCommission += hammer * commRate;
         row.totalBP += hammer * 0.23;
       }
@@ -142,7 +157,6 @@ export default function FinancialsPage() {
         });
       }
       setCategoryTotals(Array.from(catMap.values()).sort((a, b) => b.totalEarned - a.totalEarned));
-
       setLoading(false);
     }
     loadData();
@@ -161,7 +175,6 @@ export default function FinancialsPage() {
         <h1 className="page-title">Financials</h1>
         <p className="text-[#6687bc] text-sm mt-1">Commission, buyers premium and total earned by auction</p>
       </div>
-
       <div className="card py-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
@@ -180,7 +193,6 @@ export default function FinancialsPage() {
           </div>
         </div>
       </div>
-
       {loading ? (
         <div className="flex items-center justify-center h-48">
           <p className="text-[#6687bc] text-sm">Loading...</p>
@@ -205,7 +217,6 @@ export default function FinancialsPage() {
               <p className="stat-value mt-1 text-gold-300">{formatCurrency(overallTotals.totalEarned)}</p>
             </div>
           </div>
-
           {categoryTotals.length > 1 && (
             <div className="card p-0 overflow-hidden">
               <div className="px-6 py-4 border-b border-[#1e3a6b]">
@@ -239,7 +250,6 @@ export default function FinancialsPage() {
               </div>
             </div>
           )}
-
           <div className="card p-0 overflow-hidden">
             <div className="px-6 py-4 border-b border-[#1e3a6b]">
               <h2 className="section-title">By auction</h2>
