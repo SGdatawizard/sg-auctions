@@ -24,16 +24,26 @@ export default function AnalyticsPage() {
         .select("*")
         .order("date", { ascending: true });
 
-      const { data: lots } = await supabase
-        .from("lots")
-        .select("category, sold, hammer_price");
+      // Paginated lots fetch
+      const lots: { category: string | null; sold: boolean; hammer_price: number | null }[] = [];
+      let from = 0;
+      while (true) {
+        const { data, error } = await supabase
+          .from("lots")
+          .select("category, sold, hammer_price")
+          .range(from, from + 999);
+        if (error || !data || data.length === 0) break;
+        lots.push(...data);
+        if (data.length < 1000) break;
+        from += 1000;
+      }
 
-      if (!auctions || !lots) {
+      if (!auctions) {
         setLoading(false);
         return;
       }
 
-      // Year on year summaries — use auctions table for reliability
+      // Year on year summaries
       const yearMap = new Map<number, YearSummary>();
       for (const auction of auctions) {
         const year = new Date(auction.date).getFullYear();
@@ -60,7 +70,7 @@ export default function AnalyticsPage() {
         sellThroughRate: y.totalLots > 0 ? (y.totalSold / y.totalLots) * 100 : 0,
       }));
 
-      // Category summaries — use lots table, filter sold in JS
+      // Category summaries
       const catMap = new Map<string, CategorySummary>();
       for (const lot of lots) {
         const cat = lot.category ?? "Uncategorised";
@@ -108,9 +118,7 @@ export default function AnalyticsPage() {
     <div className="space-y-8">
       <div>
         <h1 className="page-title">Analytics</h1>
-        <p className="text-[#6687bc] text-sm mt-1">
-          Year-on-year performance and category breakdown
-        </p>
+        <p className="text-[#6687bc] text-sm mt-1">Year-on-year performance and category breakdown</p>
       </div>
       <AnalyticsCharts
         yearSummaries={yearSummaries}
