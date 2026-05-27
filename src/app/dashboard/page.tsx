@@ -47,17 +47,25 @@ export default function DashboardPage() {
       }
 
       const auctionIds = auctions.map((a) => a.id);
-      let lots: { sold: boolean; hammer_price: unknown; commission_rate: string | null }[] = [];
 
+      // Paginated lots fetch
+      const lots: { sold: boolean; hammer_price: unknown; commission_rate: string | null }[] = [];
       if (auctionIds.length > 0) {
-        const { data: lotsData } = await supabase
-          .from("lots")
-          .select("sold, hammer_price, commission_rate")
-          .in("auction_id", auctionIds);
-        lots = lotsData ?? [];
+        let from = 0;
+        while (true) {
+          const { data, error } = await supabase
+            .from("lots")
+            .select("sold, hammer_price, commission_rate")
+            .in("auction_id", auctionIds)
+            .range(from, from + 999);
+          if (error || !data || data.length === 0) break;
+          lots.push(...data);
+          if (data.length < 1000) break;
+          from += 1000;
+        }
       }
 
-      const soldLots = lots.filter((l) => l.sold);
+      const soldLots = lots.filter((l) => l.sold === true);
       const totalSold = soldLots.length;
       const totalHammerValue = auctions.reduce((sum, a) => sum + toNum(a.total_hammer_value), 0);
 
