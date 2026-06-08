@@ -75,7 +75,7 @@ export default function UnsoldLotsPage() {
   const [describerFilter, setDescriberFilter] = useState("all");
   const [dynamicFilters, setDynamicFilters] = useState<DynamicFilter[]>([]);
   const [describerData, setDescriberData] = useState<DescriberUnsold[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [departments, setDepartments] = useState<string[]>([]);
   const [lotCategories, setLotCategories] = useState<string[]>([]);
   const supabase = createClient();
@@ -97,17 +97,18 @@ export default function UnsoldLotsPage() {
   }, []);
 
   useEffect(() => {
+    // Require a category to be selected before loading
+    if (categoryFilter === "all") {
+      setDescriberData([]);
+      setLoading(false);
+      return;
+    }
+
     async function loadData() {
-      if (auctions.length === 0) {
-        setLoading(false);
-        return;
-      }
       setLoading(true);
 
       let filteredAuctions = auctions;
-      if (categoryFilter !== "all") {
-        filteredAuctions = filteredAuctions.filter((a) => a.auction_category === categoryFilter);
-      }
+      filteredAuctions = filteredAuctions.filter((a) => a.auction_category === categoryFilter);
       if (yearFilter !== "all") {
         filteredAuctions = filteredAuctions.filter((a) => new Date(a.date).getFullYear() === parseInt(yearFilter));
       }
@@ -157,22 +158,40 @@ export default function UnsoldLotsPage() {
 
       const lotIds = unsoldLots.map((l) => l.id);
 
-      // Vendors
-      const { data: lotVendors } = await supabase.from("lot_vendors").select("lot_id, vendor_id").in("lot_id", lotIds);
-      const vendorIds = Array.from(new Set((lotVendors ?? []).map((lv) => lv.vendor_id)));
+      // Vendors — chunked to avoid Supabase .in() limit
+      const lotVendors: { lot_id: string; vendor_id: string }[] = [];
+      for (let i = 0; i < lotIds.length; i += 200) {
+        const chunk = lotIds.slice(i, i + 200);
+        const { data } = await supabase.from("lot_vendors").select("lot_id, vendor_id").in("lot_id", chunk);
+        if (data) lotVendors.push(...data);
+      }
+
+      const vendorIds = Array.from(new Set(lotVendors.map((lv) => lv.vendor_id)));
       const vendorMap = new Map<string, string | null>();
       if (vendorIds.length > 0) {
-        const { data: vendors } = await supabase.from("vendors").select("id, name").in("id", vendorIds);
-        if (vendors) { for (const v of vendors) { vendorMap.set(v.id, v.name); } }
+        const vendors: { id: string; name: string | null }[] = [];
+        for (let i = 0; i < vendorIds.length; i += 200) {
+          const chunk = vendorIds.slice(i, i + 200);
+          const { data } = await supabase.from("vendors").select("id, name").in("id", chunk);
+          if (data) vendors.push(...data);
+        }
+        for (const v of vendors) { vendorMap.set(v.id, v.name); }
       }
+
       const lotToVendor = new Map<string, string | null>();
-      for (const lv of lotVendors ?? []) {
+      for (const lv of lotVendors) {
         lotToVendor.set(lv.lot_id, vendorMap.get(lv.vendor_id) ?? null);
       }
 
-      // Describers
-      const { data: lotDescribers } = await supabase.from("lot_describers").select("lot_id, describer_id").in("lot_id", lotIds);
-      const describerIds = Array.from(new Set((lotDescribers ?? []).map((ld) => ld.describer_id)));
+      // Describers — chunked to avoid Supabase .in() limit
+      const lotDescribers: { lot_id: string; describer_id: string }[] = [];
+      for (let i = 0; i < lotIds.length; i += 200) {
+        const chunk = lotIds.slice(i, i + 200);
+        const { data } = await supabase.from("lot_describers").select("lot_id, describer_id").in("lot_id", chunk);
+        if (data) lotDescribers.push(...data);
+      }
+
+      const describerIds = Array.from(new Set(lotDescribers.map((ld) => ld.describer_id)));
       const describerMap = new Map<string, string>();
       if (describerIds.length > 0) {
         const { data: describers } = await supabase.from("describers").select("id, name").in("id", describerIds);
@@ -181,7 +200,7 @@ export default function UnsoldLotsPage() {
 
       // Build describer -> lots map
       const describerToLots = new Map<string, { id: string; name: string; lots: UnsoldLotRow[] }>();
-      for (const ld of lotDescribers ?? []) {
+      for (const ld of lotDescribers) {
         const lot = unsoldLots.find((l) => l.id === ld.lot_id);
         if (!lot) continue;
         const describerName = describerMap.get(ld.describer_id) ?? "Unknown";
@@ -219,7 +238,7 @@ export default function UnsoldLotsPage() {
       setLoading(false);
     }
 
-    loadData();
+    if (auctions.length > 0) loadData();
   }, [auctionFilter, categoryFilter, yearFilter, auctions]);
 
   const getFilteredData = (): DescriberUnsold[] => {
@@ -300,19 +319,19 @@ export default function UnsoldLotsPage() {
     <div className="space-y-8">
       <div>
         <h1 className="page-title">Unsold lots by describer</h1>
-        <p className="text-[#6687bc] text-sm mt-1">Full details of unsold lots grouped by describer</p>
+        <p className="text-[#6687bc] text-sm mt-1">Select a category to begin</p>
       </div>
 
       <div className="card space-y-4 py-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           <div>
-            <label className="label">Auction category</label>
+            <label className="label">Auction category <span className="text-red-400">*</span></label>
             <select
               value={categoryFilter}
               onChange={(e) => { setCategoryFilter(e.target.value); setAuctionFilter("all"); setDescriberFilter("all"); setDynamicFilters([]); }}
               className="input"
             >
-              <option value="all">All categories</option>
+              <option value="all">Select a category...</option>
               {AUCTION_CATEGORIES.map((cat) => (<option key={cat} value={cat}>{cat}</option>))}
             </select>
           </div>
@@ -322,6 +341,7 @@ export default function UnsoldLotsPage() {
               value={yearFilter}
               onChange={(e) => { setYearFilter(e.target.value); setAuctionFilter("all"); setDescriberFilter("all"); setDynamicFilters([]); }}
               className="input"
+              disabled={categoryFilter === "all"}
             >
               <option value="all">All years</option>
               {years.map((y) => (<option key={y} value={y}>{y}</option>))}
@@ -333,6 +353,7 @@ export default function UnsoldLotsPage() {
               value={auctionFilter}
               onChange={(e) => { setAuctionFilter(e.target.value); setDescriberFilter("all"); setDynamicFilters([]); }}
               className="input"
+              disabled={categoryFilter === "all"}
             >
               <option value="all">All auctions</option>
               {filteredAuctionList.map((a) => (
@@ -346,6 +367,7 @@ export default function UnsoldLotsPage() {
               value={describerFilter}
               onChange={(e) => { setDescriberFilter(e.target.value); setDynamicFilters([]); }}
               className="input"
+              disabled={categoryFilter === "all"}
             >
               <option value="all">All describers</option>
               {describerData.map((d) => (
@@ -423,7 +445,13 @@ export default function UnsoldLotsPage() {
         </div>
       </div>
 
-      {loading ? (
+      {categoryFilter === "all" ? (
+        <div className="card text-center py-16">
+          <PackageX size={36} className="text-[#2f5597] mx-auto mb-3" />
+          <p className="text-[#f7f4ec] text-sm font-medium">Select an auction category to load unsold lots</p>
+          <p className="text-[#6687bc] text-xs mt-1">Choose Stamps, Coins or Pop Culture above to get started</p>
+        </div>
+      ) : loading ? (
         <div className="flex items-center justify-center h-48">
           <p className="text-[#6687bc] text-sm">Loading...</p>
         </div>
