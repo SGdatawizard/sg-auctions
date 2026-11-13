@@ -10,9 +10,11 @@ import {
   X,
   Calendar,
   Tag,
+  Building2,
 } from "lucide-react";
+import * as XLSX from "xlsx";
 import { formatCurrency } from "@/lib/utils/formatters";
-import { AUCTION_CATEGORIES } from "@/lib/types/database";
+import { AUCTION_CATEGORIES, OFFICES, detectOfficeAndCategory } from "@/lib/types/database";
 
 type UploadState = "idle" | "uploading" | "success" | "error";
 
@@ -20,7 +22,10 @@ type UploadResult = {
   auctionId: string;
   auctionName: string;
   saleNumber: string | null;
+  office: string;
   auctionCategory: string | null;
+  sourceCurrency: string;
+  fxRate: number;
   lotsImported: number;
   lotsSold: number;
   totalHammerValue: number;
@@ -50,20 +55,76 @@ function getAccessToken(): string | null {
   return null;
 }
 
+// Same rule as the server: keep the full prefix, e.g. SGS26028, CB26004, S26000
+function extractSaleNumber(filename: string): string | null {
+  const match = filename.match(/[A-Za-z]{1,4}\d{4,6}/);
+  return match ? match[0].toUpperCase() : null;
+}
+
 export default function UploadPage() {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [auctionDate, setAuctionDate] = useState("");
+  const [office, setOffice] = useState("");
   const [auctionCategory, setAuctionCategory] = useState("");
+  const [detectionNote, setDetectionNote] = useState<string | null>(null);
   const [state, setState] = useState<UploadState>("idle");
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<UploadResult | null>(null);
   const [dragOver, setDragOver] = useState(false);
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const selected = e.target.files?.[0] ?? null;
+  // Picks the file, then pre-fills office + category from the file name
+  // (and the Department column, because comics are sometimes numbered as e-sales)
+  async function selectFile(selected: File | null) {
     setFile(selected);
     setError(null);
+
+    if (!selected) {
+      setDetectionNote(null);
+      return;
+    }
+
+    const detected = detectOfficeAndCategory(extractSaleNumber(selected.name));
+    let detectedOffice: string = detected ? detected.office : "";
+    let detectedCategory: string = detected ? detected.category : "";
+    let note: string = detected
+      ? `Detected from the file name: ${detected.office} · ${detected.category}`
+      : "";
+
+    const lower = selected.name.toLowerCase();
+    if (lower.endsWith(".xlsx") || lower.endsWith(".xls")) {
+      try {
+        const buffer = await selected.arrayBuffer();
+        const workbook = XLSX.read(buffer, { type: "array" });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+          defval: null,
+          raw: true,
+        });
+        const departments = rows
+          .map((r) => r["Department"])
+          .filter((d) => d !== null && d !== undefined && d !== "");
+        if (
+          departments.length > 0 &&
+          departments.every((d) => String(d).trim().toLowerCase() === "comics")
+        ) {
+          detectedCategory = "Comics";
+          note = `Detected: ${detectedOffice || "office unknown"} · Comics (every lot is in the Comics department)`;
+        }
+      } catch {
+        // Ignore — the file name detection (or manual choice) still applies
+      }
+    }
+
+    setOffice(detectedOffice);
+    setAuctionCategory(detectedCategory);
+    setDetectionNote(
+      note || "Couldn't detect the office and category from this file — please choose them below."
+    );
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    selectFile(e.target.files?.[0] ?? null);
   }
 
   function handleDrop(e: React.DragEvent) {
@@ -80,14 +141,13 @@ export default function UploadPage() {
         setError("Only CSV and Excel files are supported");
         return;
       }
-      setFile(dropped);
-      setError(null);
+      selectFile(dropped);
     }
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!file || !auctionDate || !auctionCategory) return;
+    if (!file || !auctionDate || !auctionCategory || !office) return;
 
     setState("uploading");
     setError(null);
@@ -102,6 +162,7 @@ export default function UploadPage() {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("auction_date", auctionDate);
+    formData.append("office", office);
     formData.append("auction_category", auctionCategory);
 
     try {
@@ -132,7 +193,9 @@ export default function UploadPage() {
   function handleReset() {
     setFile(null);
     setAuctionDate("");
+    setOffice("");
     setAuctionCategory("");
+    setDetectionNote(null);
     setState("idle");
     setError(null);
     setResult(null);
@@ -155,11 +218,20 @@ export default function UploadPage() {
             {result.saleNumber && (
               <span className="badge badge-amber">{result.saleNumber}</span>
             )}
+            {result.office && (
+              <span className="badge badge-green">{result.office}</span>
+            )}
             {result.auctionCategory && (
               <span className="badge badge-green">{result.auctionCategory}</span>
             )}
           </div>
-          <p className="text-zinc-500 text-sm mb-6">{result.auctionName}</p>
+          <p className="text-zinc-500 text-sm mb-2">{result.auctionName}</p>
+          {result.sourceCurrency === "SGD" && (
+            <p className="text-gold-400 text-xs mb-4">
+              Converted from SGD at 1 SGD = £{result.fxRate}
+            </p>
+          )}
+          <div className="mb-4" />
 
           <div className="grid grid-cols-3 gap-4 mb-8">
             <div className="card-sm text-center">
@@ -261,7 +333,10 @@ export default function UploadPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setFile(null)}
+                onClick={() => {
+                  setFile(null);
+                  setDetectionNote(null);
+                }}
                 className="text-zinc-500 hover:text-zinc-300 transition-colors"
               >
                 <X size={16} />
@@ -274,7 +349,7 @@ export default function UploadPage() {
         <div className="card space-y-4">
           <h2 className="section-title">Auction details</h2>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="label">Auction date *</label>
               <div className="relative">
@@ -289,6 +364,29 @@ export default function UploadPage() {
                   className="input pl-9"
                   required
                 />
+              </div>
+            </div>
+
+            <div>
+              <label className="label">Office *</label>
+              <div className="relative">
+                <Building2
+                  size={16}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none"
+                />
+                <select
+                  value={office}
+                  onChange={(e) => setOffice(e.target.value)}
+                  className="input pl-9 appearance-none"
+                  required
+                >
+                  <option value="">Select office...</option>
+                  {OFFICES.map((o) => (
+                    <option key={o} value={o}>
+                      {o}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
@@ -316,8 +414,18 @@ export default function UploadPage() {
             </div>
           </div>
 
+          {detectionNote && (
+            <p className="text-gold-400 text-xs">{detectionNote}</p>
+          )}
+
+          {office === "Singapore" && (
+            <p className="text-zinc-500 text-xs">
+              Singapore sales are uploaded in SGD and converted to GBP at 1 SGD = £0.59
+            </p>
+          )}
+
           <p className="text-zinc-600 text-xs">
-            The date and category are used for year-on-year comparisons and filtering
+            The date, office and category are used for year-on-year comparisons and filtering
           </p>
         </div>
 
@@ -333,7 +441,7 @@ export default function UploadPage() {
 
         <button
           type="submit"
-          disabled={!file || !auctionDate || !auctionCategory || state === "uploading"}
+          disabled={!file || !auctionDate || !auctionCategory || !office || state === "uploading"}
           className="btn-primary w-full flex items-center justify-center gap-2"
         >
           {state === "uploading" ? (
