@@ -2,6 +2,13 @@ import { NextResponse, type NextRequest } from "next/server";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import {
+  AUCTION_CATEGORIES,
+  OFFICES,
+  SGD_TO_GBP,
+  detectOfficeAndCategory,
+  type Office,
+} from "@/lib/types/database";
 
 type RawRow = Record<string, string | number | null | undefined>;
 
@@ -17,8 +24,16 @@ function num(value: unknown): number | null {
   return isNaN(parsed) ? null : parsed;
 }
 
+// Parses a money value and converts it to GBP using the supplied rate (1 for London)
+function money(value: unknown, fxRate: number): number | null {
+  const n = num(value);
+  if (n === null) return null;
+  return Math.round(n * fxRate * 100) / 100;
+}
+
+// Keeps the full prefix, e.g. SGS26028, SGE26018, CB26004, S26000
 function extractSaleNumber(filename: string): string | null {
-  const match = filename.match(/[A-Za-z]\d{4,6}/);
+  const match = filename.match(/[A-Za-z]{1,4}\d{4,6}/);
   return match ? match[0].toUpperCase() : null;
 }
 
@@ -119,7 +134,26 @@ export async function POST(request: NextRequest) {
     const saleNumber = extractSaleNumber(file.name);
     const auctionDate = (formData.get("auction_date") as string | null) ?? parseDate(rows);
     const auctionLocation = str(firstRow["Item Location"]) ?? null;
-    const auctionCategory = (formData.get("auction_category") as string | null) ?? null;
+
+    // Office + category: use what the upload form sent, otherwise detect from the sale number
+    const detected = detectOfficeAndCategory(saleNumber);
+
+    const officeInput = formData.get("office") as string | null;
+    const office: Office =
+      officeInput && (OFFICES as readonly string[]).includes(officeInput)
+        ? (officeInput as Office)
+        : detected?.office ?? "London";
+
+    const categoryInput = formData.get("auction_category") as string | null;
+    const auctionCategory: string | null =
+      categoryInput && (AUCTION_CATEGORIES as readonly string[]).includes(categoryInput)
+        ? categoryInput
+        : detected?.category ?? null;
+
+    // Singapore sales are in SGD — convert everything to GBP at upload
+    const isSingapore = office === "Singapore";
+    const fxRate = isSingapore ? SGD_TO_GBP : 1;
+    const sourceCurrency = isSingapore ? "SGD" : "GBP";
 
     // Create auction record
     const { data: auction, error: auctionError } = await supabase
@@ -130,6 +164,9 @@ export async function POST(request: NextRequest) {
         date: auctionDate,
         location: auctionLocation,
         auction_category: auctionCategory,
+        office,
+        source_currency: sourceCurrency,
+        fx_rate: fxRate,
         total_lots: 0,
         lots_sold: 0,
         total_hammer_value: 0,
@@ -148,7 +185,7 @@ export async function POST(request: NextRequest) {
 
     // Build lots array for batch insert
     const lotsToInsert = rows.map((row) => {
-      const hammerPrice = num(row["Hammer Price"]);
+      const hammerPrice = money(row["Hammer Price"], fxRate);
       const isSold = hammerPrice !== null && hammerPrice > 0;
       return {
         auction_id: auction.id,
@@ -160,12 +197,12 @@ export async function POST(request: NextRequest) {
         category: str(row["Category"]),
         item_location: str(row["Item Location"]),
         receipt_no: str(row["Receipt No"]),
-        estimate_low: num(row["Low"]),
-        estimate_high: num(row["High"]),
-        start_price: num(row["Start Price"]),
-        reserve: num(row["Reserve"]),
+        estimate_low: money(row["Low"], fxRate),
+        estimate_high: money(row["High"], fxRate),
+        start_price: money(row["Start Price"], fxRate),
+        reserve: money(row["Reserve"], fxRate),
         hammer_price: hammerPrice,
-        hammer_and_bp: num(row["Hammer & BP (VAT incl.)"]),
+        hammer_and_bp: money(row["Hammer & BP (VAT incl.)"], fxRate),
         tax_status: str(row["Tax Status"]),
         commission_rate: str(row["Commission Rate"]),
         sold: isSold,
@@ -407,7 +444,10 @@ export async function POST(request: NextRequest) {
       auctionId: auction.id,
       auctionName,
       saleNumber,
+      office,
       auctionCategory,
+      sourceCurrency,
+      fxRate,
       lotsImported: insertedLots.length,
       lotsSold: soldLots.length,
       totalHammerValue,
