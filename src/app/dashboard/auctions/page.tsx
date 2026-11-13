@@ -6,10 +6,16 @@ import { createClient } from "@/lib/supabase/client";
 import { formatCurrency, formatPercent, formatDate, getSellThroughBadge } from "@/lib/utils/formatters";
 import { Gavel, Plus } from "lucide-react";
 import type { Auction } from "@/lib/types/database";
-import { AUCTION_CATEGORIES } from "@/lib/types/database";
+import { AUCTION_CATEGORIES, OFFICES } from "@/lib/types/database";
+
+const pillClass = (active: boolean) =>
+  `px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+    active ? "bg-gold-500 text-[#0e1e38]" : "bg-[#1e3a6b] text-[#94aed6] hover:text-[#f7f4ec]"
+  }`;
 
 export default function AuctionsPage() {
   const [auctions, setAuctions] = useState<Auction[]>([]);
+  const [officeFilter, setOfficeFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
@@ -22,6 +28,9 @@ export default function AuctionsPage() {
         .select("*")
         .order("date", { ascending: false });
 
+      if (officeFilter !== "all") {
+        query = query.eq("office", officeFilter);
+      }
       if (categoryFilter !== "all") {
         query = query.eq("auction_category", categoryFilter);
       }
@@ -31,7 +40,9 @@ export default function AuctionsPage() {
       setLoading(false);
     }
     loadAuctions();
-  }, [categoryFilter]);
+  }, [officeFilter, categoryFilter]);
+
+  const filtersActive = officeFilter !== "all" || categoryFilter !== "all";
 
   return (
     <div className="space-y-8">
@@ -50,31 +61,30 @@ export default function AuctionsPage() {
         </Link>
       </div>
 
-      {/* Category filter */}
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => setCategoryFilter("all")}
-          className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-            categoryFilter === "all"
-              ? "bg-gold-500 text-[#0e1e38]"
-              : "bg-[#1e3a6b] text-[#94aed6] hover:text-[#f7f4ec]"
-          }`}
-        >
-          All
-        </button>
-        {AUCTION_CATEGORIES.map((cat) => (
-          <button
-            key={cat}
-            onClick={() => setCategoryFilter(cat)}
-            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-              categoryFilter === cat
-                ? "bg-gold-500 text-[#0e1e38]"
-                : "bg-[#1e3a6b] text-[#94aed6] hover:text-[#f7f4ec]"
-            }`}
-          >
-            {cat}
+      {/* Filters */}
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-[#6687bc] w-16">Office</span>
+          <button onClick={() => setOfficeFilter("all")} className={pillClass(officeFilter === "all")}>
+            All offices
           </button>
-        ))}
+          {OFFICES.map((o) => (
+            <button key={o} onClick={() => setOfficeFilter(o)} className={pillClass(officeFilter === o)}>
+              {o}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-[#6687bc] w-16">Category</span>
+          <button onClick={() => setCategoryFilter("all")} className={pillClass(categoryFilter === "all")}>
+            All
+          </button>
+          {AUCTION_CATEGORIES.map((cat) => (
+            <button key={cat} onClick={() => setCategoryFilter(cat)} className={pillClass(categoryFilter === cat)}>
+              {cat}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Table */}
@@ -88,11 +98,11 @@ export default function AuctionsPage() {
             <Gavel size={36} className="text-[#2f5597] mx-auto mb-3" />
             <p className="text-[#6687bc] text-sm">No auctions found</p>
             <p className="text-[#2f5597] text-xs mt-1 mb-6">
-              {categoryFilter !== "all"
-                ? `No ${categoryFilter} auctions on record yet`
+              {filtersActive
+                ? "No auctions on record for this selection yet"
                 : "Upload your first file to get started"}
             </p>
-            {categoryFilter === "all" && (
+            {!filtersActive && (
               <Link href="/dashboard/upload" className="btn-primary">
                 Upload data
               </Link>
@@ -105,6 +115,7 @@ export default function AuctionsPage() {
                 <tr className="border-b border-[#1e3a6b]">
                   <th className="table-header text-left py-4 px-6">Sale no.</th>
                   <th className="table-header text-left py-4 px-6">Auction</th>
+                  <th className="table-header text-left py-4 px-6">Office</th>
                   <th className="table-header text-left py-4 px-6">Category</th>
                   <th className="table-header text-left py-4 px-6">Date</th>
                   <th className="table-header text-left py-4 px-6">Location</th>
@@ -132,6 +143,9 @@ export default function AuctionsPage() {
                       </td>
                       <td className="table-cell px-6 font-medium text-[#f7f4ec]">
                         {auction.name}
+                      </td>
+                      <td className="table-cell px-6 text-[#94aed6]">
+                        {auction.office ?? "London"}
                       </td>
                       <td className="table-cell px-6">
                         {auction.auction_category ? (
