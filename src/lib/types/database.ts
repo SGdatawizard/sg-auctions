@@ -19,6 +19,9 @@ export interface Database {
           location: string | null;
           description: string | null;
           auction_category: string | null;
+          office: string;
+          source_currency: string;
+          fx_rate: number;
           total_lots: number;
           lots_sold: number;
           total_hammer_value: number;
@@ -33,6 +36,9 @@ export interface Database {
           location?: string | null;
           description?: string | null;
           auction_category?: string | null;
+          office?: string;
+          source_currency?: string;
+          fx_rate?: number;
           total_lots?: number;
           lots_sold?: number;
           total_hammer_value?: number;
@@ -47,6 +53,9 @@ export interface Database {
           location?: string | null;
           description?: string | null;
           auction_category?: string | null;
+          office?: string;
+          source_currency?: string;
+          fx_rate?: number;
           total_lots?: number;
           lots_sold?: number;
           total_hammer_value?: number;
@@ -336,8 +345,41 @@ export const ESTIMATE_RANGES: EstimateRange[] = [
   { label: "£5,000+",      min: 5001, max: null },
 ];
 
-export const AUCTION_CATEGORIES = ["Stamps", "Coins", "Pop Culture"] as const;
+// ── Offices & categories ────────────────────────────────────────────
+export const OFFICES = ["London", "Singapore"] as const;
+export type Office = typeof OFFICES[number];
+
+export const AUCTION_CATEGORIES = ["Stamps", "Coins", "Entertainment", "Comics"] as const;
 export type AuctionCategory = typeof AUCTION_CATEGORIES[number];
+
+// Singapore sales are uploaded in SGD and converted to GBP at upload time
+export const SGD_TO_GBP = 0.59;
+
+// Sale-number prefix (after stripping a leading "SG" for Singapore) -> category
+const PREFIX_TO_CATEGORY: Record<string, AuctionCategory> = {
+  S: "Stamps",
+  C: "Coins",
+  E: "Entertainment",
+  CB: "Comics",
+};
+
+// Works out office + category from a sale number such as S26000, CB26004, SGS26028, SGE26018
+export function detectOfficeAndCategory(
+  saleNumber: string | null
+): { office: Office; category: AuctionCategory } | null {
+  if (!saleNumber) return null;
+  const match = saleNumber.toUpperCase().match(/^([A-Z]+)\d/);
+  if (!match) return null;
+  let prefix = match[1];
+  let office: Office = "London";
+  if (prefix.indexOf("SG") === 0 && prefix.length > 2) {
+    office = "Singapore";
+    prefix = prefix.slice(2);
+  }
+  const category = PREFIX_TO_CATEGORY[prefix];
+  if (!category) return null;
+  return { office, category };
+}
 
 export type DescriberSummary = {
   id: string;
